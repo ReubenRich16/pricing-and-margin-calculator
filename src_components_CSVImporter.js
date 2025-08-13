@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { writeBatch, doc, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from './firebase';
 
 const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
     const [file, setFile] = useState(null);
