@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase';
+import { db, auth } from './firebase';
 import { onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
 import MainApplication from './components/MainApplication';
 
