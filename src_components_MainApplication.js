@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
+import { db, auth } from './firebase';
 import Dashboard from './Dashboard';
 import MaterialsManager from './MaterialsManager';
 import LabourManager from './LabourManager';
