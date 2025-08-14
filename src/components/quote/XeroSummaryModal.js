@@ -1,16 +1,32 @@
 import React, { useState, useMemo } from 'react';
 import { X, Copy } from 'lucide-react';
 
+/**
+ * XeroSummaryModal
+ * 
+ * Displays a summary of the current quote worksheet in a format that can be copied into Xero.
+ * Props:
+ * - worksheetData: The worksheet object with groups and line items.
+ * - calculations: The calculations object (totals, GST, etc.).
+ * - onClose: Function to close the modal.
+ */
 const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
     const [copied, setCopied] = useState(false);
 
+    // Format the quote summary for Xero
     const summaryText = useMemo(() => {
         let text = `Quote for: ${worksheetData.customerName || 'N/A'}\nSite: ${worksheetData.worksheetName || 'N/A'}\n\n`;
         worksheetData.groups.forEach(group => {
             if ((group.lineItems && group.lineItems.length > 0) || (group.laborItems && group.laborItems.length > 0)) {
                 text += `--- ${group.groupName} ---\n`;
-                (group.lineItems || []).forEach(item => { text += `- ${item.materialName} (${item.quantity} ${item.unitOfMeasure || 'unit'})\n`; });
-                (group.laborItems || []).forEach(item => { text += `- ${item.area} (${item.quantity} ${item.unit || 'unit'})\n`; });
+                // Material line items
+                (group.lineItems || []).forEach(item => { 
+                    text += `- ${item.materialName} (${item.quantity} ${item.unitOfMeasure || 'unit'})\n`; 
+                });
+                // Labour line items (future-proof: if laborItems added)
+                (group.laborItems || []).forEach(item => { 
+                    text += `- ${item.area} (${item.quantity} ${item.unit || 'unit'})\n`; 
+                });
                 text += `\n`;
             }
         });
@@ -18,13 +34,20 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
         return text;
     }, [worksheetData, calculations]);
 
+    // Copy summary text to clipboard
     const handleCopy = () => {
         const textArea = document.createElement("textarea");
         textArea.value = summaryText;
         textArea.style.position = "fixed"; textArea.style.top = "0"; textArea.style.left = "0";
         document.body.appendChild(textArea);
         textArea.focus(); textArea.select();
-        try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error('Failed to copy text: ', err); }
+        try { 
+            document.execCommand('copy'); 
+            setCopied(true); 
+            setTimeout(() => setCopied(false), 2000); 
+        } catch (err) { 
+            console.error('Failed to copy text: ', err); 
+        }
         document.body.removeChild(textArea);
     };
 
@@ -35,7 +58,9 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
                     <h3 className="text-lg font-semibold text-gray-800">Finalize for Xero</h3>
                     <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><X size={24}/></button>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">Review the summary below. You can copy this text and paste it directly into the description field of a Xero quote.</p>
+                <p className="text-sm text-gray-600 mb-4">
+                    Review the summary below. You can copy this text and paste it directly into the description field of a Xero quote.
+                </p>
                 <pre className="bg-gray-100 p-4 rounded-md text-sm whitespace-pre-wrap font-mono overflow-auto max-h-80">{summaryText}</pre>
                 <div className="mt-6 flex justify-end">
                     <button onClick={handleCopy} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 w-36 justify-center">
