@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react';
 
 /**
  * useSearchFilters
- * Centralizes search/filter state and filtering logic.
- * 
- * @param {Array} items - The data array to filter.
+ * Centralizes search/filter state and filtering logic for any dataset.
+ *
+ * @param {Array} items - The data to filter.
  * @param {Object} config - { filterFields: Array, searchFields: Array }
- * @returns [filteredItems, searchTerm, setSearchTerm, filters, setFilters, resetFilters]
+ * @returns [filteredItems, searchTerm, setSearchTerm, filters, setFilters, filterOptions, resetFilters]
  */
 export default function useSearchFilters(items, { filterFields, searchFields }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -14,7 +14,7 @@ export default function useSearchFilters(items, { filterFields, searchFields }) 
         Object.fromEntries(filterFields.map(f => [f, '']))
     );
 
-    // --- Filter options (unique values from items) ---
+    // Unique options for each filter field
     const filterOptions = useMemo(() => {
         const options = {};
         filterFields.forEach(field => {
@@ -23,10 +23,9 @@ export default function useSearchFilters(items, { filterFields, searchFields }) 
         return options;
     }, [items, filterFields]);
 
-    // --- Filtered results ---
     const filteredItems = useMemo(() => {
         let result = [...items];
-        // Apply search term
+        // Apply search
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             result = result.filter(item =>
