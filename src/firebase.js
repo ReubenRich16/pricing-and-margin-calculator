@@ -10,18 +10,19 @@ import { getFirestore, collection } from "firebase/firestore";
 const firebaseConfigString = typeof __firebase_config !== 'undefined'
   ? __firebase_config
   : JSON.stringify({
-      apiKey: "AIzaSyAiAQfKywpTslewwSliAYHyxSV3LPVjgoQ",
-      authDomain: "pricing-and-margin-calculator.firebaseapp.com",
-      projectId: "pricing-and-margin-calculator",
-      storageBucket: "pricing-and-margin-calculator.firebasestorage.app",
-      messagingSenderId: "298417414795",
-      appId: "1:298417414795:web:b82bc178c078c4bd9a6a8e",
-      measurementId: "G-CYKYR2KNHE"
+      apiKey: "AIzaSyCU4oA__sV1wCjGdRy_pVYGhq1Hc_BYM3M",
+      authDomain: "reuben-s-testt.firebaseapp.com",
+      projectId: "reuben-s-testt",
+      storageBucket: "reuben-s-testt.firebasestorage.app",
+      messagingSenderId: "888500392763",
+      appId: "1:888500392763:web:68ce9aa69f96458424dd1e"
+      // (measurementId is optional for most apps)
     });
 
 const firebaseConfig = JSON.parse(firebaseConfigString);
 
-export const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// --- Use your new appId (projectId is fine) ---
+export const appId = "reuben-s-testt";
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
