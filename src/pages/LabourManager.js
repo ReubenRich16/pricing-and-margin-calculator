@@ -1,13 +1,15 @@
+// --- Labour Rates Database Management ---
+// CRUD interface for labour rates, supports CSV import and grouped display.
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, auth } from '../firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { db, appId } from '../firebase'; // Remove 'auth' import
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { Plus, Trash2, Edit, Upload } from 'lucide-react';
-import ConfirmationModal from './components/ConfirmationModal';
-import CSVImporter from './components/CSVImporter';
-import LabourModal from './components/LabourModal';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import CSVImporter from '../components/common/CSVImporter';
+import LabourModal from '../components/labour/LabourModal';
 
-const appId = 'default-app-id';
-
+// --- CSV Field Mappings for Import ---
 const labourFieldMappings = {
     'Application': { name: 'application', type: 'string', required: true },
     'Area': { name: 'area', type: 'string', required: true, isMatchKey: true },
@@ -18,6 +20,7 @@ const labourFieldMappings = {
     'Keywords': { name: 'keywords', type: 'array' },
 };
 
+// --- Main LabourManager Component ---
 const LabourManager = () => {
     const [labourRates, setLabourRates] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,21 +30,37 @@ const LabourManager = () => {
 
     const labourRatesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'labourRates');
 
+    // --- Fetch labour rates in real-time ---
     useEffect(() => { 
-        const unsub = onSnapshot(labourRatesCollectionRef, (snap) => setLabourRates(snap.docs.map(d => ({ id: d.id, ...d.data() }))); return () => unsub(); 
+        const unsub = onSnapshot(labourRatesCollectionRef, (snap) => setLabourRates(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
+        return () => unsub(); 
     }, []);
 
+    // --- Group labour rates by application for display ---
     const groupedLabourRates = useMemo(() => { 
-        const groupData = labourRates.reduce((acc, rate) => { const category = rate.application || 'Uncategorized'; (acc[category] = acc[category] || []).push(rate); return acc; }, {}); 
+        const groupData = labourRates.reduce((acc, rate) => { 
+            const category = rate.application || 'Uncategorized'; 
+            (acc[category] = acc[category] || []).push(rate); 
+            return acc; 
+        }, {}); 
         return Object.entries(groupData).sort(([a], [b]) => a.localeCompare(b)); 
     }, [labourRates]);
 
+    // --- Save/Create Labour Rate ---
     const handleSave = async (data) => {
-        if (editingRate) await updateDoc(doc(labourRatesCollectionRef, editingRate.id), data); else await addDoc(labourRatesCollectionRef, data);
+        if (editingRate) await updateDoc(doc(labourRatesCollectionRef, editingRate.id), data); 
+        else await addDoc(labourRatesCollectionRef, data);
         setIsModalOpen(false); setEditingRate(null);
     };
-    const handleDelete = async () => { if (!rateToDelete) return; await deleteDoc(doc(labourRatesCollectionRef, rateToDelete.id)); setRateToDelete(null); };
 
+    // --- Delete Labour Rate ---
+    const handleDelete = async () => { 
+        if (!rateToDelete) return; 
+        await deleteDoc(doc(labourRatesCollectionRef, rateToDelete.id)); 
+        setRateToDelete(null); 
+    };
+
+    // --- Main Render ---
     return (
         <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
