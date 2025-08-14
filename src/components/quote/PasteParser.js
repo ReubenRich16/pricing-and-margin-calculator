@@ -2,18 +2,9 @@ import React, { useState } from 'react';
 
 /**
  * PasteParser
- * 
- * Purpose:
- * - Paste raw quote text (blocks, subgroups, line items)
- * - Hierarchically parses blocks, subgroups/sections, material lines
- * - Matches material and possible multiple labour rates
- * - Returns parsed structure via onParse callback
- * 
- * Props:
- * - materials: array of material DB objects
- * - labourRates: array of labour DB objects
- * - onParse: function(parsedGroups) => void
- * - brand: string (optional, restricts material search)
+ * - Parses raw quote text into blocks, subgroups, and material lines.
+ * - Autofills best material and labour matches, attaches suggestion arrays.
+ * - Returns parsed structure via onParse callback.
  */
 const PasteParser = ({ materials, labourRates, onParse, brand }) => {
     const [text, setText] = useState('');
@@ -33,38 +24,44 @@ const PasteParser = ({ materials, labourRates, onParse, brand }) => {
         return matrix[b.length][a.length];
     };
 
-    // --- Material matching ---
-    const findBestMaterialMatch = (searchText, parsedRValue) => {
-        if (!searchText || !materials?.length) return null;
-        let bestMatch = null;
-        let minDistance = Infinity;
-        let filteredMaterials = brand
-            ? materials.filter(m => m.brand?.toLowerCase() === brand.toLowerCase())
-            : materials;
+    // --- Material matching: returns best match and shortlist array ---
+    const getMaterialMatches = (desc, parsedRValue, area) => {
+        let filteredMaterials = materials;
+        if (brand) {
+            filteredMaterials = filteredMaterials.filter(m => m.brand?.toLowerCase() === brand.toLowerCase());
+        }
         if (parsedRValue) {
             filteredMaterials = filteredMaterials.filter(m => String(m.rValue) === String(parsedRValue));
         }
-        filteredMaterials.forEach(material => {
-            const distance = levenshteinDistance(
-                searchText.toLowerCase(),
-                material.materialName.toLowerCase()
+        if (area) {
+            filteredMaterials = filteredMaterials.filter(m =>
+                m.category?.toLowerCase().includes(area.toLowerCase()) ||
+                m.materialName?.toLowerCase().includes(area.toLowerCase())
             );
-            if (distance < minDistance) {
-                minDistance = distance;
-                bestMatch = material;
-            }
-        });
-        return minDistance < searchText.length / 1.5 ? bestMatch : null;
+        }
+        // Score by fuzzy match
+        const scored = filteredMaterials.map(mat => ({
+            ...mat,
+            score: levenshteinDistance(desc?.toLowerCase() || '', mat.materialName?.toLowerCase() || ''),
+        }));
+        scored.sort((a, b) => a.score - b.score);
+        const bestMatch = scored.length && scored[0].score < (desc?.length || 10) / 1.5 ? scored[0] : null;
+        const shortlist = scored.slice(0, 5).filter(m => m.score < (desc?.length || 10) / 1.2);
+        return { bestMatch, materialSuggestions: shortlist.filter(m => bestMatch ? m.id !== bestMatch.id : true) };
     };
 
-    // --- Labour matching: returns array of labour matches (could be more than one per item) ---
-    const findBestLabourMatches = (desc) => {
-        if (!desc || !labourRates?.length) return [];
-        return labourRates.filter(rate => {
-            if (rate.keywords && rate.keywords.some(k => desc.toLowerCase().includes(k))) return true;
-            if (rate.area && desc.toLowerCase().includes(rate.area.toLowerCase())) return true;
-            return false;
+    // --- Labour matching: returns array of best matches and possible matches ---
+    const getLabourMatches = (desc, area) => {
+        // Score by keyword, area/application, fuzzy, etc.
+        const matches = labourRates.filter(rate => {
+            let found = false;
+            if (rate.keywords && rate.keywords.some(k => desc.toLowerCase().includes(k))) found = true;
+            if (rate.area && desc.toLowerCase().includes(rate.area.toLowerCase())) found = true;
+            if (rate.application && area && area.toLowerCase().includes(rate.application.toLowerCase())) found = true;
+            return found;
         });
+        const allMatches = labourRates.filter(rate => !matches.includes(rate));
+        return { bestMatches: matches, possibleLabourMatches: allMatches };
     };
 
     // --- Parser ---
@@ -109,23 +106,42 @@ const PasteParser = ({ materials, labourRates, onParse, brand }) => {
                 const unit = materialMatch[7];
                 const widthMatch = materialDescription.match(/(\d{2,4})mm/);
                 const width = widthMatch ? widthMatch[1] : null;
-                const bestMaterial = findBestMaterialMatch(materialDescription, parsedRValue);
-                const matchedLabours = findBestLabourMatches(materialDescription);
+                // Use subgroup name or group name as area/application
+                const area = currentSubgroup?.subgroupName || currentGroup?.groupName || '';
+                // Material matching
+                const { bestMatch, materialSuggestions } = getMaterialMatches(materialDescription, parsedRValue, area);
+                // Labour matching
+                const { bestMatches, possibleLabourMatches } = getLabourMatches(materialDescription, area);
 
                 const lineItem = {
                     description: line,
                     quantity: quantity || '',
                     unit: unit,
-                    materialId: bestMaterial ? bestMaterial.id : '',
-                    materialName: bestMaterial ? bestMaterial.materialName : materialDescription,
+                    materialId: bestMatch ? bestMatch.id : '',
+                    materialName: bestMatch ? bestMatch.materialName : materialDescription,
                     rValue: parsedRValue || '',
                     width: width || '',
-                    labourApplications: matchedLabours.map(labour => ({
+                    materialSuggestions: materialSuggestions.map(m => ({
+                        id: m.id,
+                        materialName: m.materialName,
+                        rValue: m.rValue,
+                        brand: m.brand,
+                        supplier: m.supplier,
+                    })),
+                    labourApplications: bestMatches.map(labour => ({
                         id: labour.id,
                         area: labour.area,
                         application: labour.application,
                         defaultRate: labour.timberRate,
                         overrideRate: '', // to be set in UI
+                        unit: labour.unit,
+                    })),
+                    possibleLabourMatches: possibleLabourMatches.map(labour => ({
+                        id: labour.id,
+                        area: labour.area,
+                        application: labour.application,
+                        defaultRate: labour.timberRate,
+                        unit: labour.unit,
                     })),
                     customerPrice: '',
                     priceIncludesGst: true
