@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from './firebase'; // Only import 'db' if you need Firestore here.
 import { onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import MainApplication from './components/MainApplication';
+import MainApplication from './components/layout/MainApplication';
 
 // --- Main App Logic ---
 const App = () => {
