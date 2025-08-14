@@ -7,74 +7,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Plus, Trash2, X, Copy } from 'lucide-react';
 import PasteParser from '../components/quote/PasteParser'; // <-- Added for R5.3
-
-// --- Xero Summary Modal ---
-// Displays a copyable summary for pasting into Xero.
-const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
-    const [copied, setCopied] = useState(false);
-
-    // Memoized summary text for Xero
-    const summaryText = useMemo(() => {
-        let text = `Quote for: ${worksheetData.customerName}\n`;
-        text += `Site: ${worksheetData.worksheetName}\n\n`;
-
-        (worksheetData.groups || []).forEach(group => {
-            if (group.lineItems && group.lineItems.length > 0) {
-                text += `--- ${group.groupName} ---\n`;
-                group.lineItems.forEach(item => {
-                    if(item.materialName) {
-                       text += `- ${item.materialName} (${item.quantity} ${item.unitOfMeasure || 'unit'})\n`;
-                    }
-                });
-                text += `\n`;
-            }
-        });
-
-        text += `--------------------------------\n`;
-        text += `Subtotal (ex. GST): $${calculations.subtotalExGst.toFixed(2)}\n`;
-        text += `GST: $${calculations.gstAmount.toFixed(2)}\n`;
-        text += `TOTAL (inc. GST): $${calculations.totalPriceIncGst.toFixed(2)}\n`;
-
-        return text;
-    }, [worksheetData, calculations]);
-
-    // Copy to clipboard handler
-    const handleCopy = () => {
-        const textArea = document.createElement("textarea");
-        textArea.value = summaryText;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-            document.execCommand('copy');
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-        }
-        document.body.removeChild(textArea);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Finalize for Xero</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><X size={24}/></button>
-                </div>
-                <p className="text-sm text-gray-600 mb-4">Review the summary below. You can copy this text and paste it directly into the description field of a Xero quote.</p>
-                <pre className="bg-gray-100 p-4 rounded-md text-sm whitespace-pre-wrap font-mono overflow-auto max-h-80">
-                    {summaryText}
-                </pre>
-                <div className="mt-6 flex justify-end">
-                    <button onClick={handleCopy} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 w-36 justify-center">
-                        <Copy size={16} className="mr-2"/>
-                        {copied ? 'Copied!' : 'Copy Text'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
+import XeroSummaryModal from '../components/quote/XeroSummaryModal'; // <-- Use imported component
 
 // --- Line Item Subcomponent ---
 // Renders a line item row in a quote group.
