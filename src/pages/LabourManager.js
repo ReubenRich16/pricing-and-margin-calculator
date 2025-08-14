@@ -1,13 +1,15 @@
 // --- Labour Rates Database Management ---
-// CRUD interface for labour rates, supports CSV import and grouped display.
+// Uses shared FilterBar and useSearchFilters
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { db, appId } from '../firebase'; // Remove 'auth' import
+import React, { useState, useEffect } from 'react';
+import { db, appId } from '../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { Plus, Trash2, Edit, Upload } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
 import LabourModal from '../components/labour/LabourModal';
+import useSearchFilters from '../components/common/useSearchFilters';
+import FilterBar from '../components/common/FilterBar';
 
 // --- CSV Field Mappings for Import ---
 const labourFieldMappings = {
@@ -20,31 +22,46 @@ const labourFieldMappings = {
     'Keywords': { name: 'keywords', type: 'array' },
 };
 
-// --- Main LabourManager Component ---
+const FILTER_FIELDS = [
+    { key: 'application', label: 'Application' },
+    { key: 'unit', label: 'Unit' }
+];
+
+const SEARCH_FIELDS = ['area', 'notes', 'application', 'keywords'];
+
 const LabourManager = () => {
     const [labourRates, setLabourRates] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRate, setEditingRate] = useState(null);
     const [rateToDelete, setRateToDelete] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
 
     const labourRatesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'labourRates');
 
-    // --- Fetch labour rates in real-time ---
     useEffect(() => { 
         const unsub = onSnapshot(labourRatesCollectionRef, (snap) => setLabourRates(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
         return () => unsub(); 
     }, []);
 
+    // --- Use shared filter hook ---
+    const [
+        filteredLabourRates,
+        searchTerm, setSearchTerm,
+        filters, setFilters,
+        filterOptions, resetFilters
+    ] = useSearchFilters(labourRates, {
+        filterFields: FILTER_FIELDS.map(f => f.key),
+        searchFields: SEARCH_FIELDS
+    });
+
     // --- Group labour rates by application for display ---
-    const groupedLabourRates = useMemo(() => { 
-        const groupData = labourRates.reduce((acc, rate) => { 
-            const category = rate.application || 'Uncategorized'; 
-            (acc[category] = acc[category] || []).push(rate); 
-            return acc; 
-        }, {}); 
-        return Object.entries(groupData).sort(([a], [b]) => a.localeCompare(b)); 
-    }, [labourRates]);
+    const groupedLabourRates = filteredLabourRates.reduce((acc, rate) => { 
+        const category = rate.application || 'Uncategorized'; 
+        (acc[category] = acc[category] || []).push(rate); 
+        return acc; 
+    }, {}); 
+    const sortedGroups = Object.entries(groupedLabourRates).sort(([a], [b]) => a.localeCompare(b));
 
     // --- Save/Create Labour Rate ---
     const handleSave = async (data) => {
@@ -70,39 +87,64 @@ const LabourManager = () => {
                     <button onClick={() => { setEditingRate(null); setIsModalOpen(true); }} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"><Plus size={18} className="mr-2" /> Add Labour Rate</button>
                 </div>
             </div>
+            <FilterBar
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                filters={filters}
+                setFilters={setFilters}
+                filterOptions={filterOptions}
+                showFilters={showFilters}
+                setShowFilters={setShowFilters}
+                resetFilters={resetFilters}
+                fields={FILTER_FIELDS}
+            />
             <div className="space-y-6">
-                {groupedLabourRates.map(([application, rates]) => (
-                    <div key={application}>
-                        <h3 className="text-lg font-semibold text-gray-600 mb-2">{application}</h3>
-                        <div className="overflow-x-auto border rounded-lg">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Area / Description</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timber Rate</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Steel Rate</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {rates.map((rate) => (
-                                        <tr key={rate.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{rate.area}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(rate.timberRate || 0).toFixed(2)}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(rate.steelRate || 0).toFixed(2)}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rate.unit}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <button onClick={() => { setEditingRate(rate); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit size={18} /></button>
-                                                <button onClick={() => setRateToDelete(rate)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
-                                            </td>
+                {sortedGroups.length > 0 ? (
+                    sortedGroups.map(([application, rates]) => (
+                        <div key={application}>
+                            <h3 className="text-lg font-semibold text-gray-600 mb-2">{application} ({rates.length})</h3>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Area / Description</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timber Rate</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Steel Rate</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {rates.map((rate) => (
+                                            <tr key={rate.id}>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{rate.area}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(rate.timberRate || 0).toFixed(2)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(rate.steelRate || 0).toFixed(2)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rate.unit}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button onClick={() => { setEditingRate(rate); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit size={18} /></button>
+                                                    <button onClick={() => setRateToDelete(rate)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+                    ))
+                ) : (
+                    <div className="text-center py-8 text-gray-500">
+                        No labour rates found matching your search criteria.
+                        {(searchTerm || filters.application || filters.unit) && (
+                            <button 
+                                onClick={resetFilters}
+                                className="block mx-auto mt-2 text-blue-500 hover:underline"
+                            >
+                                Reset filters
+                            </button>
+                        )}
                     </div>
-                ))}
+                )}
             </div>
             {isModalOpen && <LabourModal rate={editingRate} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
             {isImporting && <CSVImporter collectionRef={labourRatesCollectionRef} fieldMappings={labourFieldMappings} onComplete={() => setIsImporting(false)} />}
