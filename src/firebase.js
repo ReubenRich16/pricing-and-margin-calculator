@@ -4,11 +4,9 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, collection } from "firebase/firestore";
 
 // --- Dynamic Configuration Support ---
-// Allows config to be injected at runtime via global variable (e.g., __firebase_config),
-// otherwise falls back to hardcoded defaults for local development.
 const firebaseConfigString = typeof __firebase_config !== 'undefined'
   ? __firebase_config
   : JSON.stringify({
@@ -23,15 +21,14 @@ const firebaseConfigString = typeof __firebase_config !== 'undefined'
 
 const firebaseConfig = JSON.parse(firebaseConfigString);
 
-// --- Dynamic App ID Support ---
-// Allows appId to be injected at runtime (for multi-tenancy) or defaults for single-tenant app.
 export const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- Initialize Firebase Services ---
-// Centralizes creation of Firebase app, Firestore DB, and Auth.
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// --- Export customers collection ref for re-use ---
+export const customersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
 
 // --- Export App (optional, for advanced usage) ---
 export { app };
