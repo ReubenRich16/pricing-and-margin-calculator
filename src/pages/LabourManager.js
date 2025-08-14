@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, auth } from './firebase';
+import { db, auth } from '../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { Plus, Trash2, Edit, Upload } from 'lucide-react';
-import ConfirmationModal from './ConfirmationModal';
-import CSVImporter from './CSVImporter';
-import LabourModal from './LabourModal';
+import ConfirmationModal from './components/ConfirmationModal';
+import CSVImporter from './components/CSVImporter';
+import LabourModal from './components/LabourModal';
 
 const appId = 'default-app-id';
 
