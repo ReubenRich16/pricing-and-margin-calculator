@@ -8,6 +8,8 @@ import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 
 import { Plus, Trash2, X, Copy } from 'lucide-react';
 import PasteParser from '../components/quote/PasteParser';
 import XeroSummaryModal from '../components/quote/XeroSummaryModal';
+import QuoteSummary from '../components/quote/QuoteSummary';
+import { calculateTotals } from '../utils/calculateTotals';
 
 // --- Line Item Subcomponent ---
 // Renders a line item row in a quote group, with validation.
@@ -170,34 +172,8 @@ const Calculator = ({ worksheet, onBack }) => {
 
     // --- Calculation Engine ---
     const calculations = useMemo(() => {
-        const GST_RATE = 0.10;
-        let totalMaterialCost = 0;
-        const totalLaborCost = 0;
-
-        (worksheetData.groups || []).forEach(group => {
-            (group.lineItems || []).forEach(item => {
-                const material = materials.find(m => m.id === item.materialId);
-                if (material && item.quantity > 0) {
-                    totalMaterialCost += (material.costPrice || 0) * (item.quantity || 0);
-                }
-            });
-        });
-
-        const totalCostExGst = totalMaterialCost + totalLaborCost;
-        const marginPercentage = worksheetData.marginPercentage || 0;
-        const marginDecimal = marginPercentage / 100;
-        if (marginDecimal >= 1) {
-            return { totalMaterialCost: 0, totalLaborCost: 0, totalCostExGst: 0, markupAmount: 0, subtotalExGst: 0, gstAmount: 0, totalPriceIncGst: 0, actualMargin: 0 };
-        }
-
-        const subtotalExGst = totalCostExGst === 0 ? 0 : totalCostExGst / (1 - marginDecimal);
-        const markupAmount = subtotalExGst - totalCostExGst;
-        const gstAmount = subtotalExGst * GST_RATE;
-        const totalPriceIncGst = subtotalExGst + gstAmount;
-        const actualMargin = subtotalExGst > 0 ? ((subtotalExGst - totalCostExGst) / subtotalExGst) * 100 : 0;
-
-        return { totalMaterialCost, totalLaborCost, totalCostExGst, markupAmount, subtotalExGst, gstAmount, totalPriceIncGst, actualMargin };
-    }, [worksheetData, materials]);
+        return calculateTotals(worksheetData, materials, labourRates);
+    }, [worksheetData, materials, labourRates]);
 
     // --- Worksheet Form Handlers ---
     const handleInputChange = (e) => {
@@ -214,7 +190,7 @@ const Calculator = ({ worksheet, onBack }) => {
             groupId: `group_${Date.now()}`,
             groupName: 'New Group',
             lineItems: [],
-            laborItems: []
+            labourItems: []
         };
         setWorksheetData(prev => ({ ...prev, groups: [...(prev.groups || []), newGroup] }));
     };
@@ -282,7 +258,7 @@ const Calculator = ({ worksheet, onBack }) => {
                             ...item,
                             lineItemId: `item_${Date.now()}_${Math.random().toString(36).substr(2,5)}`
                         })),
-                        laborItems: []
+                        labourItems: []
                     });
                 });
             } else if (group.lineItems && group.lineItems.length > 0) {
@@ -293,7 +269,7 @@ const Calculator = ({ worksheet, onBack }) => {
                         ...item,
                         lineItemId: `item_${Date.now()}_${Math.random().toString(36).substr(2,5)}`
                     })),
-                    laborItems: []
+                    labourItems: []
                 });
             }
         });
@@ -331,13 +307,6 @@ const Calculator = ({ worksheet, onBack }) => {
             await addDoc(worksheetsCollectionRef, dataToSave);
         }
         onBack();
-    };
-
-    // --- Margin Color Utility ---
-    const getMarginColor = (margin) => {
-        if (margin >= 20) return 'bg-green-100 text-green-800';
-        if (margin >= 10) return 'bg-yellow-100 text-yellow-800';
-        return 'bg-red-100 text-red-800';
     };
 
     // --- Main Render ---
@@ -394,21 +363,7 @@ const Calculator = ({ worksheet, onBack }) => {
                 {/* Calculations Sidebar */}
                 <div className="lg:col-span-1 lg:sticky top-24 bg-white p-6 rounded-lg shadow-md space-y-4">
                     <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Live Calculations</h3>
-                    <div className="space-y-2 text-sm">
-                        <div className="flex justify-between"><span className="text-gray-600">Material Cost:</span><span className="font-medium">${calculations.totalMaterialCost.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-600">Labour Cost:</span><span className="font-medium">${calculations.totalLaborCost.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span className="text-gray-800">Total Cost (ex. GST):</span><span>${calculations.totalCostExGst.toFixed(2)}</span></div>
-                    </div>
-                    <div className="space-y-2 text-sm border-t pt-2 mt-2">
-                        <div className="flex justify-between"><span className="text-gray-600">Markup:</span><span className="font-medium">${calculations.markupAmount.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-bold"><span className="text-gray-800">Subtotal (ex. GST):</span><span>${calculations.subtotalExGst.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-600">GST:</span><span className="font-medium">${calculations.gstAmount.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span className="text-gray-800">Total Price (inc. GST):</span><span>${calculations.totalPriceIncGst.toFixed(2)}</span></div>
-                    </div>
-                    <div className={`p-4 rounded-lg text-center ${getMarginColor(calculations.actualMargin)}`}>
-                        <div className="text-sm font-bold uppercase tracking-wider">Actual Profit Margin</div>
-                        <div className="text-4xl font-bold">{calculations.actualMargin.toFixed(2)}%</div>
-                    </div>
+                    <QuoteSummary calculations={calculations} />
                     <div className="flex flex-col space-y-3 pt-4 border-t">
                         <button onClick={handleSave} className="w-full bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 font-semibold">
                             {worksheetData.id ? 'Update Worksheet' : 'Save Worksheet'}
