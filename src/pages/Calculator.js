@@ -1,13 +1,18 @@
+// --- Pricing Calculator Page ---
+// Implements Quote Worksheet creation and editing, including Quote Groups and Line Items.
+// Handles real-time margin and GST calculations, and Xero summary finalization.
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, auth } from '../firebase'
+import { db } from '../firebase'; // Removed 'auth' import for cleanliness
 import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Plus, Trash2, X, Copy } from 'lucide-react';
 
-// --- Sub-Components (keep here or modularize if reused) ---
-
+// --- Xero Summary Modal ---
+// Displays a copyable summary for pasting into Xero.
 const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
     const [copied, setCopied] = useState(false);
 
+    // Memoized summary text for Xero
     const summaryText = useMemo(() => {
         let text = `Quote for: ${worksheetData.customerName}\n`;
         text += `Site: ${worksheetData.worksheetName}\n\n`;
@@ -32,6 +37,7 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
         return text;
     }, [worksheetData, calculations]);
 
+    // Copy to clipboard handler
     const handleCopy = () => {
         const textArea = document.createElement("textarea");
         textArea.value = summaryText;
@@ -69,6 +75,8 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
     );
 };
 
+// --- Line Item Subcomponent ---
+// Renders a line item row in a quote group.
 const LineItem = ({ item, lineIndex, onLineItemChange, onRemoveLineItem, materials }) => (
     <div className="bg-white p-3 rounded-md border border-gray-300 grid grid-cols-12 gap-3 items-center">
         <div className="col-span-6">
@@ -107,6 +115,8 @@ const LineItem = ({ item, lineIndex, onLineItemChange, onRemoveLineItem, materia
     </div>
 );
 
+// --- Worksheet Group Subcomponent ---
+// Renders a quote group and its line items.
 const WorksheetGroup = ({ group, groupIndex, onGroupChange, onRemoveGroup, onAddLineItem, onRemoveLineItem, onLineItemChange, materials }) => (
     <div className="border border-gray-200 bg-gray-50/80 p-4 rounded-lg">
         <div className="flex justify-between items-center mb-3">
@@ -120,7 +130,6 @@ const WorksheetGroup = ({ group, groupIndex, onGroupChange, onRemoveGroup, onAdd
                 <Trash2 size={18}/>
             </button>
         </div>
-
         <div className="space-y-2">
             {(group.lineItems || []).map((item, lineIndex) => (
                 <LineItem
@@ -133,7 +142,6 @@ const WorksheetGroup = ({ group, groupIndex, onGroupChange, onRemoveGroup, onAdd
                 />
             ))}
         </div>
-
         <button onClick={() => onAddLineItem(groupIndex)} className="flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium mt-3">
             <Plus size={14} className="mr-1"/>Add Line Item
         </button>
@@ -141,7 +149,7 @@ const WorksheetGroup = ({ group, groupIndex, onGroupChange, onRemoveGroup, onAdd
 );
 
 // --- Main Calculator Component ---
-
+// Handles worksheet state, CRUD, live calculations, and rendering.
 const Calculator = ({ worksheet, onBack }) => {
     const [worksheetData, setWorksheetData] = useState({
         worksheetName: '',
@@ -153,10 +161,11 @@ const Calculator = ({ worksheet, onBack }) => {
     const [materials, setMaterials] = useState([]);
     const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
 
-    // Centralized Firestore path
+    // Centralized Firestore paths (replace 'default-app-id' with dynamic appId if needed)
     const worksheetsCollectionRef = collection(db, 'artifacts', 'default-app-id', 'public', 'data', 'worksheets');
     const materialsCollectionRef = collection(db, 'artifacts', 'default-app-id', 'public', 'data', 'materials');
 
+    // Fetch materials in real-time
     useEffect(() => {
         const unsubscribe = onSnapshot(materialsCollectionRef, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -165,6 +174,7 @@ const Calculator = ({ worksheet, onBack }) => {
         return () => unsubscribe();
     }, []);
 
+    // Set worksheet data from prop or reset for new worksheet
     useEffect(() => {
         if (worksheet) {
             setWorksheetData({
@@ -182,6 +192,8 @@ const Calculator = ({ worksheet, onBack }) => {
         }
     }, [worksheet]);
 
+    // --- Calculation Engine ---
+    // Computes all totals, GST, and margin values in real-time.
     const calculations = useMemo(() => {
         const GST_RATE = 0.10;
         let totalMaterialCost = 0;
@@ -213,6 +225,7 @@ const Calculator = ({ worksheet, onBack }) => {
         return { totalMaterialCost, totalLaborCost, totalCostExGst, markupAmount, subtotalExGst, gstAmount, totalPriceIncGst, actualMargin };
     }, [worksheetData, materials]);
 
+    // --- Worksheet Form Handlers ---
     const handleInputChange = (e) => {
         const { name, value, type } = e.target;
         setWorksheetData(prev => ({
@@ -221,6 +234,7 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
+    // Add Quote Group
     const addGroup = () => {
         const newGroup = {
             groupId: `group_${Date.now()}`,
@@ -231,16 +245,19 @@ const Calculator = ({ worksheet, onBack }) => {
         setWorksheetData(prev => ({ ...prev, groups: [...(prev.groups || []), newGroup] }));
     };
 
+    // Remove Quote Group
     const removeGroup = (indexToRemove) => {
         setWorksheetData(prev => ({ ...prev, groups: prev.groups.filter((_, index) => index !== indexToRemove) }));
     };
 
+    // Handle Group Edit
     const handleGroupChange = (index, field, value) => {
         const newGroups = [...worksheetData.groups];
         newGroups[index][field] = value;
         setWorksheetData(prev => ({ ...prev, groups: newGroups }));
     };
 
+    // Add Material Line Item
     const addLineItem = (groupIndex) => {
         const newLineItem = {
             lineItemId: `item_${Date.now()}`,
@@ -256,12 +273,14 @@ const Calculator = ({ worksheet, onBack }) => {
         setWorksheetData(prev => ({ ...prev, groups: newGroups }));
     };
 
+    // Remove Material Line Item
     const removeLineItem = (groupIndex, lineIndexToRemove) => {
         const newGroups = [...worksheetData.groups];
         newGroups[groupIndex].lineItems = newGroups[groupIndex].lineItems.filter((_, index) => index !== lineIndexToRemove);
         setWorksheetData(prev => ({ ...prev, groups: newGroups }));
     };
 
+    // Handle Line Item Edit
     const handleLineItemChange = (groupIndex, lineIndex, field, value) => {
         const newGroups = [...worksheetData.groups];
         const lineItem = newGroups[groupIndex].lineItems[lineIndex];
@@ -277,6 +296,7 @@ const Calculator = ({ worksheet, onBack }) => {
         setWorksheetData(prev => ({ ...prev, groups: newGroups }));
     };
 
+    // --- Worksheet Save Handler ---
     const handleSave = async () => {
         const dataToSave = {
             ...worksheetData,
@@ -294,15 +314,18 @@ const Calculator = ({ worksheet, onBack }) => {
         onBack();
     };
 
+    // --- Margin Color Utility ---
     const getMarginColor = (margin) => {
         if (margin >= 20) return 'bg-green-100 text-green-800';
         if (margin >= 10) return 'bg-yellow-100 text-yellow-800';
         return 'bg-red-100 text-red-800';
     };
 
+    // --- Main Render ---
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+                {/* Worksheet Form & Groups */}
                 <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-md space-y-6">
                     <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-bold text-gray-800">{worksheet?.id ? 'Edit Worksheet' : 'New Quote Worksheet'}</h2>
@@ -324,6 +347,7 @@ const Calculator = ({ worksheet, onBack }) => {
                         </div>
                     </div>
 
+                    {/* Quote Groups */}
                     <div className="space-y-4">
                         {(worksheetData.groups || []).map((group, index) => (
                             <WorksheetGroup
@@ -344,6 +368,7 @@ const Calculator = ({ worksheet, onBack }) => {
                     </button>
                 </div>
 
+                {/* Calculations Sidebar */}
                 <div className="lg:col-span-1 lg:sticky top-24 bg-white p-6 rounded-lg shadow-md space-y-4">
                     <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Live Calculations</h3>
                     <div className="space-y-2 text-sm">
