@@ -1,6 +1,4 @@
 // --- Utility: Calculates all worksheet financials for pricing and margin (Australian spelling) ---
-// Accepts worksheetData, materials, labourRates. Returns totals object.
-
 export function calculateTotals(worksheetData, materials, labourRates) {
     const GST_RATE = 0.10;
     let totalMaterialCost = 0;
@@ -15,14 +13,14 @@ export function calculateTotals(worksheetData, materials, labourRates) {
             }
         });
 
-        // Labour, if implemented as labourItems array (future-proof)
+        // Labour, if implemented as labourItems array
         (group.labourItems || []).forEach(labour => {
             const rate = parseFloat(labour.timberRate || labour.steelRate || labour.rate) || 0;
             const quantity = parseFloat(labour.quantity) || 0;
             totalLabourCost += rate * quantity;
         });
 
-        // Labour, if attached to lineItems (current pattern)
+        // Labour, if attached to lineItems
         (group.lineItems || []).forEach(item => {
             if (Array.isArray(item.labourApplications)) {
                 item.labourApplications.forEach(lab => {
