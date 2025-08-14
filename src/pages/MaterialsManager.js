@@ -1,13 +1,15 @@
+// --- Materials Database Management ---
+// CRUD, CSV import, clear all, and collapsible category display.
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, auth } from './firebase';
+import { db, appId } from '../firebase'; // If src/pages, this is correct. Adjust if needed!
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
-import { Plus, Trash2, Edit, Upload } from 'lucide-react';
-import ConfirmationModal from './ConfirmationModal';
-import CSVImporter from './CSVImporter';
-import MaterialModal from './MaterialModal';
+import { Plus, Trash2, Edit, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import CSVImporter from '../components/common/CSVImporter';
+import MaterialModal from '../components/materials/MaterialModal';
 
-const appId = 'default-app-id';
-
+// --- CSV Field Mappings ---
 const materialFieldMappings = {
     'Supplier': { name: 'supplier', type: 'string' },
     'Brand Name': { name: 'brand', type: 'string' },
@@ -35,6 +37,7 @@ const materialFieldMappings = {
     'Retrofit (Subfloor) Rate/m²': { name: 'retrofitSubfloorRate', type: 'number' },
 };
 
+// --- Main MaterialsManager Component ---
 const MaterialsManager = () => {
     const [materials, setMaterials] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,9 +45,11 @@ const MaterialsManager = () => {
     const [materialToDelete, setMaterialToDelete] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
     const [isClearing, setIsClearing] = useState(false);
+    const [openCategories, setOpenCategories] = useState({});
 
     const materialsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
 
+    // --- Real-time fetch ---
     useEffect(() => {
         const unsubscribe = onSnapshot(materialsCollectionRef, (snapshot) => {
             setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -52,11 +57,13 @@ const MaterialsManager = () => {
         return () => unsubscribe();
     }, []);
 
-    // Collapsible categories logic
-    const [openCategories, setOpenCategories] = useState({});
+    // --- Category grouping & ordering ---
     const processedMaterials = useMemo(() => {
-        // Collapsible logic: group by category
-        const categoryOrder = ["Bulk Insulation", "Fire Protection", "Subfloor", "Acoustic Pipe Lag", "Wall Wrap", "Consumables", "Rigid Wall/Soffit", "XPS"];
+        const categoryOrder = [
+            "Bulk Insulation", "Fire Protection", "Subfloor", 
+            "Acoustic Pipe Lag", "Wall Wrap", "Consumables", 
+            "Rigid Wall/Soffit", "XPS"
+        ];
         const groupedByCategory = materials.reduce((acc, material) => {
             const category = material.category || 'Uncategorized';
             if (!acc[category]) acc[category] = [];
@@ -75,12 +82,18 @@ const MaterialsManager = () => {
         return orderedGroups;
     }, [materials]);
 
+    // --- CRUD Handlers ---
     const handleSave = async (data) => {
-        if (editingMaterial) await updateDoc(doc(materialsCollectionRef, editingMaterial.id), data); else await addDoc(materialsCollectionRef, data);
+        if (editingMaterial) await updateDoc(doc(materialsCollectionRef, editingMaterial.id), data);
+        else await addDoc(materialsCollectionRef, data);
         setIsModalOpen(false); setEditingMaterial(null);
     };
 
-    const handleDelete = async () => { if (!materialToDelete) return; await deleteDoc(doc(materialsCollectionRef, materialToDelete.id)); setMaterialToDelete(null); };
+    const handleDelete = async () => {
+        if (!materialToDelete) return;
+        await deleteDoc(doc(materialsCollectionRef, materialToDelete.id));
+        setMaterialToDelete(null);
+    };
     
     const handleClearDatabase = async () => {
         const snapshot = await getDocs(materialsCollectionRef);
@@ -90,18 +103,26 @@ const MaterialsManager = () => {
         setIsClearing(false);
     };
 
+    // --- Collapsible category toggle ---
     const toggleCategory = (category) => {
         setOpenCategories(prev => ({...prev, [category]: !prev[category]}));
     };
 
+    // --- Render ---
     return (
         <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-gray-700">Materials Database</h2>
                 <div className="flex space-x-2">
-                    <button onClick={() => setIsImporting(true)} className="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"><Upload size={18} className="mr-2" /> Import CSV</button>
-                    <button onClick={() => { setEditingMaterial(null); setIsModalOpen(true); }} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"><Plus size={18} className="mr-2" /> Add Material</button>
-                    <button onClick={() => setIsClearing(true)} className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"><Trash2 size={18} className="mr-2" /> Clear Database</button>
+                    <button onClick={() => setIsImporting(true)} className="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
+                        <Upload size={18} className="mr-2" /> Import CSV
+                    </button>
+                    <button onClick={() => { setEditingMaterial(null); setIsModalOpen(true); }} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <Plus size={18} className="mr-2" /> Add Material
+                    </button>
+                    <button onClick={() => setIsClearing(true)} className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
+                        <Trash2 size={18} className="mr-2" /> Clear Database
+                    </button>
                 </div>
             </div>
             <div className="space-y-4">
@@ -109,7 +130,7 @@ const MaterialsManager = () => {
                     <div key={category} className="border rounded-lg">
                         <button onClick={() => toggleCategory(category)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
                             <h3 className="text-lg font-semibold text-gray-700">{category}</h3>
-                            {openCategories[category] ? <span>▲</span> : <span>▼</span>}
+                            {openCategories[category] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                         </button>
                         {openCategories[category] && (
                              <div className="overflow-x-auto">
@@ -131,10 +152,16 @@ const MaterialsManager = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.supplier}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.brand}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.rValue}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(material.costPerUnit || material.costPrice || 0).toFixed(2)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    ${(material.costPerUnit || material.costPrice || 0).toFixed(2)}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <button onClick={() => { setEditingMaterial(material); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit size={18} /></button>
-                                                    <button onClick={() => setMaterialToDelete(material)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                                    <button onClick={() => { setEditingMaterial(material); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                                                        <Edit size={18} />
+                                                    </button>
+                                                    <button onClick={() => setMaterialToDelete(material)} className="text-red-600 hover:text-red-900">
+                                                        <Trash2 size={18} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -145,10 +172,37 @@ const MaterialsManager = () => {
                     </div>
                 ))}
             </div>
-            {isModalOpen && <MaterialModal material={editingMaterial} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
-            {isImporting && <CSVImporter collectionRef={materialsCollectionRef} fieldMappings={materialFieldMappings} onComplete={() => setIsImporting(false)} />}
-            {isClearing && <ConfirmationModal title="Clear Database" message="Are you sure you want to delete ALL materials?" onConfirm={handleClearDatabase} onCancel={() => setIsClearing(false)} />}
-            {materialToDelete && (<ConfirmationModal title="Delete Material" message={`Are you sure you want to delete "${materialToDelete.materialName}"?`} confirmText="Delete" onConfirm={handleDelete} onCancel={() => setMaterialToDelete(null)}/>)}
+            {isModalOpen && (
+                <MaterialModal
+                    material={editingMaterial}
+                    onSave={handleSave}
+                    onClose={() => setIsModalOpen(false)}
+                />
+            )}
+            {isImporting && (
+                <CSVImporter
+                    collectionRef={materialsCollectionRef}
+                    fieldMappings={materialFieldMappings}
+                    onComplete={() => setIsImporting(false)}
+                />
+            )}
+            {isClearing && (
+                <ConfirmationModal
+                    title="Clear Database"
+                    message="Are you sure you want to delete ALL materials?"
+                    onConfirm={handleClearDatabase}
+                    onCancel={() => setIsClearing(false)}
+                />
+            )}
+            {materialToDelete && (
+                <ConfirmationModal
+                    title="Delete Material"
+                    message={`Are you sure you want to delete "${materialToDelete.materialName}"?`}
+                    confirmText="Delete"
+                    onConfirm={handleDelete}
+                    onCancel={() => setMaterialToDelete(null)}
+                />
+            )}
         </div>
     );
 };
