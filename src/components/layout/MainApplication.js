@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
 import { signOut } from 'firebase/auth';
-import { db, auth } from '../../firebase'; // Firebase config and authentication
-import Dashboard from '../pages/Dashboard'; // Dashboard view
-import MaterialsManager from '../pages/MaterialsManager'; // Materials CRUD
-import LabourManager from '../pages/LabourManager'; // Labour CRUD
-import Calculator from '../pages/Calculator'; // Quote worksheet calculator
-import { Briefcase, Wrench, Hammer, LogOut } from 'lucide-react';
+import { db, auth } from '../../firebase';
+import Dashboard from '../../pages/Dashboard';
+import MaterialsManager from '../../pages/MaterialsManager';
+import LabourManager from '../../pages/LabourManager';
+import CustomerManager from '../../pages/CustomerManager';
+import Calculator from '../../pages/Calculator';
+import { Briefcase, Wrench, Hammer, Users, LogOut } from 'lucide-react';
 
 /**
  * MainApplication
- * 
- * Purpose:
- * - Top-level layout and navigation for the Pricing Calculator app.
- * - Handles primary views: Dashboard, Materials, Labour, Calculator.
- * - Manages worksheet navigation state (for editing/creating quotes).
+ * - Handles primary navigation and view state for the Pricing Calculator app.
+ * - Routes to Dashboard, Materials, Labour, Customers, Calculator.
  */
 const MainApplication = () => {
-    // --- State: Current view and active worksheet (for calculator) ---
     const [view, setView] = useState('dashboard');
     const [activeWorksheet, setActiveWorksheet] = useState(null);
 
@@ -65,6 +62,13 @@ const MainApplication = () => {
                                 >
                                     <Hammer size={16} className="mr-2" />Labour
                                 </button>
+                                {/* Customers Tab */}
+                                <button
+                                    onClick={() => setView('customers')}
+                                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium ${view === 'customers' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                                >
+                                    <Users size={16} className="mr-2" />Customers
+                                </button>
                             </nav>
                         </div>
                         {/* Logout */}
@@ -85,6 +89,7 @@ const MainApplication = () => {
                 {view === 'dashboard' && <Dashboard onEditWorksheet={navigateToCalculator} />}
                 {view === 'materials' && <MaterialsManager />}
                 {view === 'labour' && <LabourManager />}
+                {view === 'customers' && <CustomerManager />}
                 {view === 'calculator' && <Calculator worksheet={activeWorksheet} onBack={navigateToDashboard} />}
             </main>
         </>
