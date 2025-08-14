@@ -1,13 +1,15 @@
 // --- Materials Database Management ---
-// CRUD, CSV import, clear all, and collapsible category display.
+// Uses shared FilterBar and useSearchFilters
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { db, appId } from '../firebase'; // If src/pages, this is correct. Adjust if needed!
+import React, { useState, useEffect } from 'react';
+import { db, appId } from '../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { Plus, Trash2, Edit, Upload, ChevronDown, ChevronUp } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
 import MaterialModal from '../components/materials/MaterialModal';
+import useSearchFilters from '../components/common/useSearchFilters';
+import FilterBar from '../components/common/FilterBar';
 
 // --- CSV Field Mappings ---
 const materialFieldMappings = {
@@ -37,7 +39,14 @@ const materialFieldMappings = {
     'Retrofit (Subfloor) Rate/m²': { name: 'retrofitSubfloorRate', type: 'number' },
 };
 
-// --- Main MaterialsManager Component ---
+const FILTER_FIELDS = [
+    { key: 'category', label: 'Category' },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'brand', label: 'Brand' }
+];
+
+const SEARCH_FIELDS = ['materialName', 'supplier', 'brand', 'itemCode'];
+
 const MaterialsManager = () => {
     const [materials, setMaterials] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,10 +55,10 @@ const MaterialsManager = () => {
     const [isImporting, setIsImporting] = useState(false);
     const [isClearing, setIsClearing] = useState(false);
     const [openCategories, setOpenCategories] = useState({});
+    const [showFilters, setShowFilters] = useState(false);
 
     const materialsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
 
-    // --- Real-time fetch ---
     useEffect(() => {
         const unsubscribe = onSnapshot(materialsCollectionRef, (snapshot) => {
             setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -57,30 +66,36 @@ const MaterialsManager = () => {
         return () => unsubscribe();
     }, []);
 
+    // --- Use shared filter hook ---
+    const [
+        filteredMaterials,
+        searchTerm, setSearchTerm,
+        filters, setFilters,
+        filterOptions, resetFilters
+    ] = useSearchFilters(materials, {
+        filterFields: FILTER_FIELDS.map(f => f.key),
+        searchFields: SEARCH_FIELDS
+    });
+
     // --- Category grouping & ordering ---
-    const processedMaterials = useMemo(() => {
-        const categoryOrder = [
-            "Bulk Insulation", "Fire Protection", "Subfloor", 
-            "Acoustic Pipe Lag", "Wall Wrap", "Consumables", 
-            "Rigid Wall/Soffit", "XPS"
-        ];
-        const groupedByCategory = materials.reduce((acc, material) => {
-            const category = material.category || 'Uncategorized';
-            if (!acc[category]) acc[category] = [];
-            acc[category].push(material);
-            return acc;
-        }, {});
-        const orderedGroups = {};
-        categoryOrder.forEach(cat => {
-            if (groupedByCategory[cat]) {
-                orderedGroups[cat] = groupedByCategory[cat];
-            }
-        });
-        Object.keys(groupedByCategory).forEach(cat => {
-            if (!orderedGroups[cat]) orderedGroups[cat] = groupedByCategory[cat];
-        });
-        return orderedGroups;
-    }, [materials]);
+    const categoryOrder = [
+        "Bulk Insulation", "Fire Protection", "Subfloor", 
+        "Acoustic Pipe Lag", "Wall Wrap", "Consumables", 
+        "Rigid Wall/Soffit", "XPS"
+    ];
+    const groupedMaterials = filteredMaterials.reduce((acc, material) => {
+        const category = material.category || 'Uncategorized';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(material);
+        return acc;
+    }, {});
+    const orderedGroups = {};
+    categoryOrder.forEach(cat => {
+        if (groupedMaterials[cat]) orderedGroups[cat] = groupedMaterials[cat];
+    });
+    Object.keys(groupedMaterials).forEach(cat => {
+        if (!orderedGroups[cat]) orderedGroups[cat] = groupedMaterials[cat];
+    });
 
     // --- CRUD Handlers ---
     const handleSave = async (data) => {
@@ -125,52 +140,77 @@ const MaterialsManager = () => {
                     </button>
                 </div>
             </div>
+            <FilterBar
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                filters={filters}
+                setFilters={setFilters}
+                filterOptions={filterOptions}
+                showFilters={showFilters}
+                setShowFilters={setShowFilters}
+                resetFilters={resetFilters}
+                fields={FILTER_FIELDS}
+            />
             <div className="space-y-4">
-                {Object.entries(processedMaterials).map(([category, items]) => (
-                    <div key={category} className="border rounded-lg">
-                        <button onClick={() => toggleCategory(category)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
-                            <h3 className="text-lg font-semibold text-gray-700">{category}</h3>
-                            {openCategories[category] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </button>
-                        {openCategories[category] && (
-                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">R-Value</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost Price</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {items.map((material) => (
-                                            <tr key={material.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{material.materialName}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.supplier}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.brand}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.rValue}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    ${(material.costPerUnit || material.costPrice || 0).toFixed(2)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <button onClick={() => { setEditingMaterial(material); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
-                                                        <Edit size={18} />
-                                                    </button>
-                                                    <button onClick={() => setMaterialToDelete(material)} className="text-red-600 hover:text-red-900">
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </td>
+                {Object.entries(orderedGroups).length > 0 ? (
+                    Object.entries(orderedGroups).map(([category, items]) => (
+                        <div key={category} className="border rounded-lg">
+                            <button onClick={() => toggleCategory(category)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
+                                <h3 className="text-lg font-semibold text-gray-700">{category} ({items.length})</h3>
+                                {openCategories[category] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </button>
+                            {openCategories[category] && (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">R-Value</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost Price</th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {items.map((material) => (
+                                                <tr key={material.id}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{material.materialName}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.supplier}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.brand}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.rValue}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        ${(material.costPerUnit || material.costPrice || 0).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <button onClick={() => { setEditingMaterial(material); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                                                            <Edit size={18} />
+                                                        </button>
+                                                        <button onClick={() => setMaterialToDelete(material)} className="text-red-600 hover:text-red-900">
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center py-8 text-gray-500">
+                        No materials found matching your search criteria.
+                        {(searchTerm || filters.category || filters.supplier || filters.brand) && (
+                            <button 
+                                onClick={resetFilters}
+                                className="block mx-auto mt-2 text-blue-500 hover:underline"
+                            >
+                                Reset filters
+                            </button>
                         )}
                     </div>
-                ))}
+                )}
             </div>
             {isModalOpen && (
                 <MaterialModal
