@@ -3,9 +3,10 @@
 // Handles real-time margin and GST calculations, and Xero summary finalization.
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../firebase'; // Removed 'auth' import for cleanliness
+import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Plus, Trash2, X, Copy } from 'lucide-react';
+import PasteParser from '../components/quote/PasteParser'; // <-- Added for R5.3
 
 // --- Xero Summary Modal ---
 // Displays a copyable summary for pasting into Xero.
@@ -159,17 +160,27 @@ const Calculator = ({ worksheet, onBack }) => {
         groups: [],
     });
     const [materials, setMaterials] = useState([]);
+    const [labourRates, setLabourRates] = useState([]); // <-- Added for R5.3
     const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
 
     // Centralized Firestore paths (replace 'default-app-id' with dynamic appId if needed)
     const worksheetsCollectionRef = collection(db, 'artifacts', 'default-app-id', 'public', 'data', 'worksheets');
     const materialsCollectionRef = collection(db, 'artifacts', 'default-app-id', 'public', 'data', 'materials');
+    const labourRatesCollectionRef = collection(db, 'artifacts', 'default-app-id', 'public', 'data', 'labourRates'); // <-- Added for R5.3
 
     // Fetch materials in real-time
     useEffect(() => {
         const unsubscribe = onSnapshot(materialsCollectionRef, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setMaterials(data);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Fetch labour rates in real-time (R5.3)
+    useEffect(() => {
+        const unsubscribe = onSnapshot(labourRatesCollectionRef, (snapshot) => {
+            setLabourRates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
         return () => unsubscribe();
     }, []);
@@ -296,6 +307,43 @@ const Calculator = ({ worksheet, onBack }) => {
         setWorksheetData(prev => ({ ...prev, groups: newGroups }));
     };
 
+    // --- NEW for R5.3: Handler for parsed groups from PasteParser ---
+    const handleParsedGroups = (parsedGroups) => {
+        // Flatten parsedGroups to worksheet format expected by UI
+        // Each group: { groupName, subgroups: [{ subgroupName, lineItems: [...] }] }
+        // We'll treat each subgroup as a quote group in the worksheet
+        const worksheetGroups = [];
+        parsedGroups.forEach(group => {
+            if (group.subgroups && group.subgroups.length > 0) {
+                group.subgroups.forEach(subgroup => {
+                    worksheetGroups.push({
+                        groupId: `group_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
+                        groupName: `${group.groupName} - ${subgroup.subgroupName}`,
+                        lineItems: (subgroup.lineItems || []).map(item => ({
+                            ...item,
+                            lineItemId: `item_${Date.now()}_${Math.random().toString(36).substr(2,5)}`
+                        })),
+                        laborItems: [] // Reserved for future
+                    });
+                });
+            } else if (group.lineItems && group.lineItems.length > 0) {
+                worksheetGroups.push({
+                    groupId: `group_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
+                    groupName: group.groupName,
+                    lineItems: (group.lineItems || []).map(item => ({
+                        ...item,
+                        lineItemId: `item_${Date.now()}_${Math.random().toString(36).substr(2,5)}`
+                    })),
+                    laborItems: []
+                });
+            }
+        });
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: worksheetGroups
+        }));
+    };
+
     // --- Worksheet Save Handler ---
     const handleSave = async () => {
         const dataToSave = {
@@ -331,6 +379,14 @@ const Calculator = ({ worksheet, onBack }) => {
                         <h2 className="text-2xl font-bold text-gray-800">{worksheet?.id ? 'Edit Worksheet' : 'New Quote Worksheet'}</h2>
                         <button onClick={onBack} className="text-sm text-gray-600 hover:text-gray-900">Back to Dashboard</button>
                     </div>
+
+                    {/* --- R5.3: Paste & Parse Section --- */}
+                    <PasteParser
+                        materials={materials}
+                        labourRates={labourRates}
+                        onParse={handleParsedGroups}
+                        brand=""
+                    />
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-gray-200 pb-6">
                         <div>
