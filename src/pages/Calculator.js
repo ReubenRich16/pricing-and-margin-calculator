@@ -1,5 +1,5 @@
 // --- Pricing Calculator Page ---
-// Now supports customer selection and custom pricing integration.
+// Supports customer selection and custom pricing integration.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, appId } from '../firebase';
@@ -10,13 +10,13 @@ import XeroSummaryModal from '../components/quote/XeroSummaryModal';
 import QuoteSummary from '../components/quote/QuoteSummary';
 import { calculateTotals } from '../utils/calculateTotals';
 
+// --- Firestore collection refs ---
 const worksheetsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'worksheets');
 const materialsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
 const labourRatesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'labourRates');
 const customersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
 
-// --- Line Item & WorksheetGroup subcomponents are unchanged (see previous code) ---
-
+// --- Main Calculator Component ---
 const Calculator = ({ worksheet, onBack }) => {
     const [worksheetData, setWorksheetData] = useState({
         worksheetName: '',
@@ -32,6 +32,7 @@ const Calculator = ({ worksheet, onBack }) => {
     const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [errorsByGroup, setErrorsByGroup] = useState({});
+    const [searchTerm, setSearchTerm] = useState('');
 
     // --- Firestore fetches ---
     useEffect(() => {
@@ -60,7 +61,7 @@ const Calculator = ({ worksheet, onBack }) => {
         }
     }, [worksheet]);
 
-    // --- Input Validation (unchanged) ---
+    // --- Input Validation ---
     useEffect(() => {
         const errorsByGroupTemp = {};
         (worksheetData.groups || []).forEach((group, gIdx) => {
@@ -114,6 +115,19 @@ const Calculator = ({ worksheet, onBack }) => {
         setIsCustomerModalOpen(false);
     };
 
+    // --- Modal for selecting customer ---
+    const filteredCustomers = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        return customers.filter(
+            customer =>
+                customer.name?.toLowerCase().includes(term) ||
+                customer.contactPerson?.toLowerCase().includes(term) ||
+                customer.email?.toLowerCase().includes(term) ||
+                customer.phone?.toLowerCase().includes(term) ||
+                customer.notes?.toLowerCase().includes(term)
+        );
+    }, [customers, searchTerm]);
+
     const CustomerSelectionModal = () => (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl">
@@ -128,6 +142,7 @@ const Calculator = ({ worksheet, onBack }) => {
                         type="text"
                         placeholder="Search customers..."
                         className="w-full p-2 border rounded-md"
+                        value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
@@ -142,7 +157,7 @@ const Calculator = ({ worksheet, onBack }) => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {customers.map(customer => (
+                            {filteredCustomers.map(customer => (
                                 <tr key={customer.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {customer.name}
@@ -184,9 +199,87 @@ const Calculator = ({ worksheet, onBack }) => {
         </div>
     );
 
-    // --- Worksheet CRUD and group handlers are unchanged (see previous code) ---
+    // --- Quote Group & Line Item handlers ---
+    const addGroup = () => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: [...(prev.groups || []), {
+                groupId: Date.now().toString(),
+                groupName: '',
+                lineItems: [],
+                labourItems: []
+            }]
+        }));
+    };
 
-    // --- Worksheet Save Handler ---
+    const removeGroup = (groupIndex) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: prev.groups.filter((_, idx) => idx !== groupIndex)
+        }));
+    };
+
+    const handleGroupChange = (groupIndex, groupData) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: prev.groups.map((group, idx) => idx === groupIndex ? { ...group, ...groupData } : group)
+        }));
+    };
+
+    const addLineItem = (groupIndex) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: prev.groups.map((group, idx) =>
+                idx === groupIndex
+                    ? { ...group, lineItems: [...(group.lineItems || []), { materialId: '', materialName: '', quantity: 1 }] }
+                    : group
+            )
+        }));
+    };
+
+    const removeLineItem = (groupIndex, lineIndex) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: prev.groups.map((group, idx) =>
+                idx === groupIndex
+                    ? { ...group, lineItems: group.lineItems.filter((_, lIdx) => lIdx !== lineIndex) }
+                    : group
+            )
+        }));
+    };
+
+    const handleLineItemChange = (groupIndex, lineIndex, itemData) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: prev.groups.map((group, idx) =>
+                idx === groupIndex
+                    ? {
+                        ...group,
+                        lineItems: group.lineItems.map((item, lIdx) =>
+                            lIdx === lineIndex ? { ...item, ...itemData } : item
+                        )
+                    }
+                    : group
+            )
+        }));
+    };
+
+    // --- Paste Parser Handler ---
+    const handleParsedGroups = (parsedGroups) => {
+        setWorksheetData(prev => ({
+            ...prev,
+            groups: parsedGroups.map(group => ({
+                groupId: Date.now().toString() + Math.random().toString(36).slice(2, 7),
+                groupName: group.groupName,
+                lineItems: group.subgroups
+                    ? group.subgroups.flatMap(sg => sg.lineItems || [])
+                    : group.lineItems || [],
+                labourItems: []
+            }))
+        }));
+    };
+
+    // --- Save Handler ---
     const handleSave = async () => {
         let hasErrors = false;
         Object.values(errorsByGroup).forEach(groupErrors => {
@@ -216,6 +309,67 @@ const Calculator = ({ worksheet, onBack }) => {
         }
         onBack();
     };
+
+    // --- WorksheetGroup subcomponent ---
+    const WorksheetGroup = ({
+        group, groupIndex, onGroupChange, onRemoveGroup,
+        onAddLineItem, onRemoveLineItem, onLineItemChange,
+        materials, errorsByLine
+    }) => (
+        <div className="border rounded-md p-4 mb-4 bg-gray-50">
+            <div className="flex justify-between items-center mb-2">
+                <input
+                    type="text"
+                    value={group.groupName}
+                    onChange={e => onGroupChange(groupIndex, { groupName: e.target.value })}
+                    className="text-lg font-semibold border-b w-2/3 bg-transparent"
+                    placeholder="Group Name / Section"
+                />
+                <button onClick={() => onRemoveGroup(groupIndex)} className="text-red-600 hover:text-red-800 ml-4">
+                    <Trash2 size={18} />
+                </button>
+            </div>
+            <div className="space-y-3">
+                {(group.lineItems || []).map((item, lineIndex) => (
+                    <div key={lineIndex} className="flex items-center space-x-2">
+                        <select
+                            value={item.materialId}
+                            onChange={e => {
+                                const selectedMat = materials.find(m => m.id === e.target.value);
+                                onLineItemChange(groupIndex, lineIndex, {
+                                    materialId: e.target.value,
+                                    materialName: selectedMat ? selectedMat.materialName : ''
+                                });
+                            }}
+                            className={`w-1/3 p-2 border rounded-md bg-white ${errorsByLine[lineIndex]?.materialId ? 'border-red-500' : ''}`}
+                        >
+                            <option value="">Select Material</option>
+                            {materials.map(mat => (
+                                <option key={mat.id} value={mat.id}>{mat.materialName}</option>
+                            ))}
+                        </select>
+                        <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={e => onLineItemChange(groupIndex, lineIndex, { quantity: parseFloat(e.target.value) || 1 })}
+                            className={`w-20 p-2 border rounded-md ${errorsByLine[lineIndex]?.quantity ? 'border-red-500' : ''}`}
+                            placeholder="Qty"
+                        />
+                        <span className="text-gray-500">
+                            {materials.find(m => m.id === item.materialId)?.unitOfMeasure || 'unit'}
+                        </span>
+                        <button onClick={() => onRemoveLineItem(groupIndex, lineIndex)} className="text-red-600 hover:text-red-800 ml-2">
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                ))}
+                <button onClick={() => onAddLineItem(groupIndex)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    <Plus size={16} className="mr-1" />Add Material Line
+                </button>
+            </div>
+        </div>
+    );
 
     // --- Main Render ---
     return (
@@ -291,6 +445,7 @@ const Calculator = ({ worksheet, onBack }) => {
                         <Plus size={16} className="mr-1"/>Add Quote Group
                     </button>
                 </div>
+                {/* Sticky sidebar for calculations */}
                 <div className="lg:col-span-1 lg:sticky top-24 bg-white p-6 rounded-lg shadow-md space-y-4">
                     <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Live Calculations</h3>
                     <QuoteSummary calculations={calculations} />
