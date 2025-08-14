@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { signOut } from 'firebase/auth';
-import { db, auth } from './firebase';
-import Dashboard from './Dashboard';
-import MaterialsManager from './MaterialsManager';
-import LabourManager from './LabourManager';
-import Calculator from './Calculator';
+import { db, auth } from '../firebase'; //
+import Dashboard from '../pages/Dashboard'; //
+import MaterialsManager from '../pages/MaterialsManager';
+import LabourManager from '../pages/LabourManager';
+import Calculator from '../pages/Calculator';
 import { Briefcase, Wrench, Hammer, LogOut } from 'lucide-react';
 
 const MainApplication = () => {
