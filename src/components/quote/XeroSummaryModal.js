@@ -20,12 +20,19 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
             if ((group.lineItems && group.lineItems.length > 0) || (group.laborItems && group.laborItems.length > 0)) {
                 text += `--- ${group.groupName} ---\n`;
                 // Material line items
-                (group.lineItems || []).forEach(item => { 
-                    text += `- ${item.materialName} (${item.quantity} ${item.unitOfMeasure || 'unit'})\n`; 
+                (group.lineItems || []).forEach(item => {
+                    text += `- ${item.materialName} (${item.quantity} ${item.unitOfMeasure || 'unit'})\n`;
+                    // Labour applications attached to this material line
+                    if (item.labourApplications && item.labourApplications.length > 0) {
+                        item.labourApplications.forEach(lab => {
+                            const rate = lab.overrideRate && lab.overrideRate !== '' ? lab.overrideRate : lab.defaultRate;
+                            text += `    • Labour: ${lab.area} (${lab.application}) ($${parseFloat(rate).toFixed(2)}/${lab.unit} x ${item.quantity} ${lab.unit})\n`;
+                        });
+                    }
                 });
                 // Labour line items (future-proof: if laborItems added)
-                (group.laborItems || []).forEach(item => { 
-                    text += `- ${item.area} (${item.quantity} ${item.unit || 'unit'})\n`; 
+                (group.laborItems || []).forEach(item => {
+                    text += `- ${item.area} (${item.quantity} ${item.unit || 'unit'})\n`;
                 });
                 text += `\n`;
             }
