@@ -1,3 +1,4 @@
+// src/App.js
 // --- App Entry Component ---
 // Handles user authentication and application initialization.
 // Renders MainApplication when authenticated, or an error/loading screen otherwise.

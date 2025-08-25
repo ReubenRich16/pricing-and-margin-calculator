@@ -1,78 +1,69 @@
+// src/components/common/FilterBar.js
 import React from 'react';
-import { Search, Filter } from 'lucide-react';
+import { Search } from 'lucide-react';
 
-/**
- * FilterBar
- * Shared UI for search and filter controls.
- * 
- * Props:
- * - searchTerm, setSearchTerm
- * - filters, setFilters
- * - filterOptions: { [field]: [option1, ...] }
- * - showFilters, setShowFilters
- * - resetFilters
- * - fields: [{ key, label }]
- */
-const FilterBar = ({
-    searchTerm, setSearchTerm,
-    filters, setFilters,
-    filterOptions,
-    showFilters, setShowFilters,
-    resetFilters,
-    fields
-}) => (
-    <div className="mb-6">
-        <div className="flex space-x-2 mb-2">
-            <div className="relative flex-grow">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={16} className="text-gray-400" />
-                </div>
-                <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Search..."
-                    className="pl-10 w-full p-2 border rounded-md"
-                />
-            </div>
-            <button 
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center px-4 py-2 border rounded-md ${showFilters ? 'bg-blue-50 border-blue-300' : ''}`}
-            >
-                <Filter size={16} className="mr-2" /> Filters
-            </button>
-        </div>
-        
-        {showFilters && (
-            <div className="bg-gray-50 p-4 rounded-md border">
-                <div className={`grid grid-cols-1 md:grid-cols-${fields.length} gap-4`}>
-                    {fields.map(({ key, label }) => (
-                        <div key={key}>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                            <select 
-                                value={filters[key]}
-                                onChange={e => setFilters({ ...filters, [key]: e.target.value })}
-                                className="w-full p-2 border rounded-md bg-white"
+const FilterBar = ({ filters, onFilterChange, filterConfig }) => {
+
+    const handleInputChange = (key, value) => {
+        onFilterChange(prevFilters => ({
+            ...prevFilters,
+            [key]: value
+        }));
+    };
+
+    const getResponsiveGridColsClass = (count) => {
+        if (count <= 1) return 'grid-cols-1';
+        if (count === 2) return 'grid-cols-1 sm:grid-cols-2';
+        if (count === 3) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+        return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+    };
+
+    const gridColsClass = getResponsiveGridColsClass(filterConfig.length);
+
+    return (
+        <div className={`mb-4 grid gap-4 ${gridColsClass} items-center`}>
+            {filterConfig.map(config => {
+                const { key, type, placeholder, options } = config;
+                
+                if (type === 'text') {
+                    return (
+                        <div key={key} className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <input
+                                type="text"
+                                value={filters[key] || ''}
+                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                placeholder={placeholder || "Search..."}
+                                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                            />
+                        </div>
+                    );
+                }
+
+                if (type === 'select') {
+                    return (
+                         <div key={key} className="relative">
+                             <select
+                                value={filters[key] || ''}
+                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                className="appearance-none w-full bg-white border border-gray-300 text-gray-700 py-2.5 px-4 pr-8 rounded-lg leading-tight focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                             >
-                                <option value="">All {label}</option>
-                                {filterOptions[key].map(opt => (
+                                <option value="">{placeholder || `Filter by ${key}`}</option>
+                                {(options || []).map(opt => (
                                     <option key={opt} value={opt}>{opt}</option>
                                 ))}
                             </select>
+                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
                         </div>
-                    ))}
-                </div>
-                <div className="mt-4 flex justify-end">
-                    <button 
-                        onClick={resetFilters}
-                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                    >
-                        Reset Filters
-                    </button>
-                </div>
-            </div>
-        )}
-    </div>
-);
+                    );
+                }
+                
+                return null;
+            })}
+        </div>
+    );
+};
 
 export default FilterBar;

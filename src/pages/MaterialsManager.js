@@ -1,248 +1,223 @@
-// --- Materials Database Management ---
-// Uses shared FilterBar and useSearchFilters
-
-import React, { useState, useEffect } from 'react';
-import { db, appId } from '../firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
-import { Plus, Trash2, Edit, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+// src/pages/MaterialsManager.js
+import React, { useState, useMemo } from 'react';
+import { useMaterials } from '../contexts/MaterialsContext';
+import { getMaterialsCollection, deleteEntireCollection } from '../firebase';
+// The faulty import has been removed.
+import MaterialModal from '../components/materials/MaterialModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
-import MaterialModal from '../components/materials/MaterialModal';
-import useSearchFilters from '../components/common/useSearchFilters';
 import FilterBar from '../components/common/FilterBar';
+import { PlusCircle, Edit, Trash2, ChevronDown, ChevronRight, Upload, Trash, Eye, EyeOff } from 'lucide-react';
 
-// --- CSV Field Mappings ---
-const materialFieldMappings = {
-    'Supplier': { name: 'supplier', type: 'string' },
-    'Brand Name': { name: 'brand', type: 'string' },
-    'Product Name': { name: 'materialName', type: 'string', required: true, isMatchKey: true },
-    'Application': { name: 'category', type: 'string' },
-    'R-Value': { name: 'rValue', type: 'string' },
-    'Thickness (mm)': { name: 'thickness', type: 'number' },
-    'Length (mm)': { name: 'length', type: 'number' },
-    'Width (mm)': { name: 'width', type: 'number' },
-    'm²/LM (bag/sheet/roll)': { name: 'm2PerUnit', type: 'number' },
-    'Pieces per bag': { name: 'piecesPerBag', type: 'number' },
-    'bags/sheet/rolls per pack': { name: 'unitsPerPack', type: 'number' },
-    'm²/LM per pack': { name: 'm2PerPack', type: 'number' },
-    'Item # / Code': { name: 'itemCode', type: 'string' },
-    'Density (kg/m³)': { name: 'density', type: 'string' },
-    'Notes': { name: 'notes', type: 'string' },
-    'Cost/(M²/LM)': { name: 'costPerM2', type: 'number'},
-    'Cost/Unit': { name: 'costPerUnit', type: 'number' },
-    'Cost/Pack': { name: 'costPerPack', type: 'number' },
-    'Sale Cost (bag/sheet/roll)': { name: 'salePrice', type: 'number' },
-    'S+I Timber': { name: 'supplyAndInstallRate', type: 'number' },
-    'S+I Steel': { name: 'supplyAndInstallRateSteel', type: 'number' },
-    'Retrofit (existing ceiling) Rate/m²': { name: 'retrofitRate', type: 'number' },
-    'Subfloor Rate/m²': { name: 'subfloorRate', type: 'number' },
-    'Retrofit (Subfloor) Rate/m²': { name: 'retrofitSubfloorRate', type: 'number' },
+// The configuration object is now correctly placed inside this file.
+const MATERIAL_DATABASE_CONFIG = {
+  categoryOrder: [
+    "Bulk Insulation", "Fire Protection", "Subfloor", "Wall Wrap",
+    "Acoustic Pipe Lagging", "Rigid Panels/Soffit", "Consumables",
+    "Specialty Insulation", "Labour Add Ons/Other",
+  ],
+  brandOrder: [
+    "Ecowool", "Earthwool", "Bradford", "Pink Batts", "Autex", "Kingspan", "Other",
+  ],
+  productNameSortOrder: {
+    Ecowool: [
+      "Thermal Ceiling & Floor Batt",
+      "Acoustic Floor & Wall Batt",
+    ],
+  },
 };
 
-const FILTER_FIELDS = [
-    { key: 'category', label: 'Category' },
-    { key: 'supplier', label: 'Supplier' },
-    { key: 'brand', label: 'Brand' }
-];
+const getVisibleColumns = (materials) => {
+    const columns = {
+        thickness: false, density: false, s_i_timber: false, s_i_steel: false,
+        length: false, width: false,
+    };
+    if (!materials || materials.length === 0) return columns;
 
-const SEARCH_FIELDS = ['materialName', 'supplier', 'brand', 'itemCode'];
+    for (const mat of materials) {
+        if (mat.thickness) columns.thickness = true;
+        if (mat.density) columns.density = true;
+        if (mat.s_i_timber) columns.s_i_timber = true;
+        if (mat.s_i_steel) columns.s_i_steel = true;
+        if (mat.length) columns.length = true;
+        if (mat.width) columns.width = true;
+    }
+    return columns;
+};
 
 const MaterialsManager = () => {
-    const [materials, setMaterials] = useState([]);
+    const { materials = [], loading, error, addMaterial, updateMaterial, deleteMaterial } = useMaterials();
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingMaterial, setEditingMaterial] = useState(null);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
+    const [currentMaterial, setCurrentMaterial] = useState(null);
     const [materialToDelete, setMaterialToDelete] = useState(null);
-    const [isImporting, setIsImporting] = useState(false);
-    const [isClearing, setIsClearing] = useState(false);
-    const [openCategories, setOpenCategories] = useState({});
-    const [showFilters, setShowFilters] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [collapsed, setCollapsed] = useState({});
+    const [showDetails, setShowDetails] = useState(false);
 
-    const materialsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
+    const filteredMaterials = useMemo(() =>
+        materials.filter(m =>
+            Object.values(m).some(val => 
+                String(val).toLowerCase().includes(searchTerm.toLowerCase())
+            )
+        ),
+        [materials, searchTerm]
+    );
 
-    useEffect(() => {
-        const unsubscribe = onSnapshot(materialsCollectionRef, (snapshot) => {
-            setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const { categoryOrder, brandOrder, productNameSortOrder } = MATERIAL_DATABASE_CONFIG;
+
+    const groupedAndSortedMaterials = useMemo(() => {
+        const sortedMaterials = [...filteredMaterials].sort((a, b) => {
+            const catAIndex = categoryOrder.indexOf(a.category);
+            const catBIndex = categoryOrder.indexOf(b.category);
+            if (catAIndex !== catBIndex) {
+                return (catAIndex === -1 ? Infinity : catAIndex) - (catBIndex === -1 ? Infinity : catBIndex);
+            }
+
+            const brandAIndex = brandOrder.indexOf(a.brand);
+            const brandBIndex = brandOrder.indexOf(b.brand);
+            if (brandAIndex !== brandBIndex) {
+                return (brandAIndex === -1 ? Infinity : brandAIndex) - (brandBIndex === -1 ? Infinity : brandBIndex);
+            }
+
+            const customSort = productNameSortOrder[a.brand];
+            if (customSort) {
+                const indexA = customSort.indexOf(a.materialName);
+                const indexB = customSort.indexOf(b.materialName);
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            }
+            if (a.materialName?.includes('Acoustic Partition') && b.materialName?.includes('Acoustic Partition')) return (b.density || 0) - (a.density || 0);
+            if (a.category === 'Wall Wrap') return (b.coverage || 0) - (a.coverage || 0);
+            const rValueA = parseFloat(a.rValue) || 0;
+            const rValueB = parseFloat(b.rValue) || 0;
+            if (rValueA !== rValueB) return rValueB - rValueA;
+            if (a.thickness !== b.thickness) return (b.thickness || 0) - (a.thickness || 0);
+            if (a.category === 'Fire Protection') return (b.density || 0) - (a.density || 0);
+
+            return (a.materialName || '').localeCompare(b.materialName || '');
         });
-        return () => unsubscribe();
-    }, []);
 
-    // --- Use shared filter hook ---
-    const [
-        filteredMaterials,
-        searchTerm, setSearchTerm,
-        filters, setFilters,
-        filterOptions, resetFilters
-    ] = useSearchFilters(materials, {
-        filterFields: FILTER_FIELDS.map(f => f.key),
-        searchFields: SEARCH_FIELDS
-    });
+        const grouped = sortedMaterials.reduce((acc, m) => {
+            const category = m.category || 'Uncategorized';
+            if (!acc[category]) {
+                acc[category] = { items: [] };
+            }
+            acc[category].items.push(m);
+            return acc;
+        }, {});
+        
+        for (const category in grouped) {
+            grouped[category].visibleColumns = getVisibleColumns(grouped[category].items);
+        }
+        
+        return grouped;
+    }, [filteredMaterials, categoryOrder, brandOrder, productNameSortOrder]);
 
-    // --- Category grouping & ordering ---
-    const categoryOrder = [
-        "Bulk Insulation", "Fire Protection", "Subfloor", 
-        "Acoustic Pipe Lag", "Wall Wrap", "Consumables", 
-        "Rigid Wall/Soffit", "XPS"
-    ];
-    const groupedMaterials = filteredMaterials.reduce((acc, material) => {
-        const category = material.category || 'Uncategorized';
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(material);
-        return acc;
-    }, {});
-    const orderedGroups = {};
-    categoryOrder.forEach(cat => {
-        if (groupedMaterials[cat]) orderedGroups[cat] = groupedMaterials[cat];
-    });
-    Object.keys(groupedMaterials).forEach(cat => {
-        if (!orderedGroups[cat]) orderedGroups[cat] = groupedMaterials[cat];
-    });
-
-    // --- CRUD Handlers ---
-    const handleSave = async (data) => {
-        if (editingMaterial) await updateDoc(doc(materialsCollectionRef, editingMaterial.id), data);
-        else await addDoc(materialsCollectionRef, data);
-        setIsModalOpen(false); setEditingMaterial(null);
+    const handleSave = (data) => {
+        if (currentMaterial) {
+            updateMaterial(currentMaterial.id, data);
+        } else {
+            addMaterial(data);
+        }
+        setIsModalOpen(false);
     };
 
-    const handleDelete = async () => {
-        if (!materialToDelete) return;
-        await deleteDoc(doc(materialsCollectionRef, materialToDelete.id));
-        setMaterialToDelete(null);
+    const handleDeleteDatabase = async () => {
+        try {
+            await deleteEntireCollection('materials');
+            alert('Materials database has been successfully cleared.');
+        } catch (err) {
+            alert('An error occurred while deleting the database.');
+        }
+        setIsDeleteDbConfirmOpen(false);
     };
     
-    const handleClearDatabase = async () => {
-        const snapshot = await getDocs(materialsCollectionRef);
-        const batch = writeBatch(db);
-        snapshot.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        setIsClearing(false);
+    const materialFieldMappings = {
+        'Product Name': { name: 'materialName', required: true, isMatchKey: true }, 'Supplier': { name: 'supplier' }, 'Brand Name': { name: 'brand' }, 'Application': { name: 'category' }, 'R-Value': { name: 'rValue' }, 'Thickness (mm)': { name: 'thickness', type: 'number' }, 'Length (mm)': { name: 'length', type: 'number' }, 'Width (mm)': { name: 'width', type: 'number' }, 'Coverage/Unit': { name: 'coverage', type: 'number' }, 'Coverage Unit': { name: 'coverageUnit' }, 'Unit': { name: 'unitOfMeasure' }, 'Density (kg/m³)': { name: 'density', type: 'number' }, 'Cost/Unit': { name: 'costPrice', type: 'number', required: true }, 'S Cost/Unit': { name: 'sCostUnit', type: 'number' }, 'S+I Timber': { name: 's_i_timber', type: 'number' }, 'S+I Steel': { name: 's_i_steel', type: 'number' }, 'Retrofit (existing ceiling) S+I/Coverage Unit': { name: 'retrofit_ceiling_rate', type: 'number' }, 'Subfloor S+I/Coverage Unit': { name: 'subfloor_rate', type: 'number' }, 'Retrofit (Subfloor) S+I/Coverage Unit': { name: 'retrofit_subfloor_rate', type: 'number' }, 'Notes': { name: 'notes' }, 'Keywords': { name: 'keywords', type: 'array' },
     };
 
-    // --- Collapsible category toggle ---
-    const toggleCategory = (category) => {
-        setOpenCategories(prev => ({...prev, [category]: !prev[category]}));
-    };
+    if (loading) return <div className="p-4">Loading materials...</div>;
+    if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
 
-    // --- Render ---
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-700">Materials Database</h2>
-                <div className="flex space-x-2">
-                    <button onClick={() => setIsImporting(true)} className="flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
-                        <Upload size={18} className="mr-2" /> Import CSV
-                    </button>
-                    <button onClick={() => { setEditingMaterial(null); setIsModalOpen(true); }} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                        <Plus size={18} className="mr-2" /> Add Material
-                    </button>
-                    <button onClick={() => setIsClearing(true)} className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
-                        <Trash2 size={18} className="mr-2" /> Clear Database
-                    </button>
+        <div className="p-6 bg-gray-50 min-h-screen">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl font-bold text-gray-800">Materials Manager</h1>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setShowDetails(!showDetails)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg shadow hover:bg-gray-300 flex items-center gap-2">
+                            {showDetails ? <EyeOff size={20} /> : <Eye size={20} />}
+                            {showDetails ? 'Hide Details' : 'Show Details'}
+                        </button>
+                        <button onClick={() => setIsImportOpen(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"><Upload size={20} /> Import CSV</button>
+                        <button onClick={() => { setCurrentMaterial(null); setIsModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"><PlusCircle size={20} /> Add New</button>
+                        <button onClick={() => setIsDeleteDbConfirmOpen(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700 flex items-center gap-2"><Trash size={20} /> Delete Database</button>
+                    </div>
+                </div>
+                
+                <FilterBar filter={searchTerm} setFilter={setSearchTerm} placeholder="Search all fields..." />
+
+                <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                    {Object.keys(groupedAndSortedMaterials).map(category => {
+                        const { items, visibleColumns } = groupedAndSortedMaterials[category];
+                        return (
+                            <div key={category}>
+                                <button onClick={() => setCollapsed(p => ({...p, [category]: !p[category]}))} className="w-full flex justify-between items-center bg-gray-100 p-3 font-semibold text-left">
+                                    <span>{category} ({items.length})</span>
+                                    {collapsed[category] ? <ChevronRight size={20}/> : <ChevronDown size={20}/>}
+                                </button>
+                                {!collapsed[category] && (
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Product Name</th>
+                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Cost/Unit</th>
+                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S Cost/Unit</th>
+                                                    {visibleColumns.s_i_timber && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S+I Timber</th>}
+                                                    {visibleColumns.s_i_steel && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S+I Steel</th>}
+                                                    {showDetails && visibleColumns.thickness && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Thickness</th>}
+                                                    {showDetails && visibleColumns.width && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Width</th>}
+                                                    {showDetails && visibleColumns.density && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Density</th>}
+                                                    <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {items.map(m => (
+                                                    <tr key={m.id}>
+                                                        <td className="p-3 font-medium text-sm">
+                                                            {m.materialName}
+                                                            <span className="block text-xs text-gray-500">{m.brand} {m.rValue && `| ${m.rValue}`}</span>
+                                                        </td>
+                                                        <td className="p-3 text-sm text-red-600 font-medium">${(m.costPrice || 0).toFixed(2)}</td>
+                                                        <td className="p-3 text-sm font-semibold">${(m.sCostUnit || 0).toFixed(2)}</td>
+                                                        {visibleColumns.s_i_timber && <td className="p-3 text-sm">${(m.s_i_timber || 0).toFixed(2)}</td>}
+                                                        {visibleColumns.s_i_steel && <td className="p-3 text-sm">${(m.s_i_steel || 0).toFixed(2)}</td>}
+                                                        {showDetails && visibleColumns.thickness && <td className="p-3 text-sm">{m.thickness}mm</td>}
+                                                        {showDetails && visibleColumns.width && <td className="p-3 text-sm">{m.width}mm</td>}
+                                                        {showDetails && visibleColumns.density && <td className="p-3 text-sm">{m.density}</td>}
+                                                        <td className="p-3 text-center">
+                                                            <button onClick={() => { setCurrentMaterial(m); setIsModalOpen(true); }} className="text-blue-500 mr-2"><Edit size={18}/></button>
+                                                            <button onClick={() => { setMaterialToDelete(m); setIsConfirmOpen(true); }} className="text-red-500"><Trash2 size={18}/></button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-            <FilterBar
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                filters={filters}
-                setFilters={setFilters}
-                filterOptions={filterOptions}
-                showFilters={showFilters}
-                setShowFilters={setShowFilters}
-                resetFilters={resetFilters}
-                fields={FILTER_FIELDS}
-            />
-            <div className="space-y-4">
-                {Object.entries(orderedGroups).length > 0 ? (
-                    Object.entries(orderedGroups).map(([category, items]) => (
-                        <div key={category} className="border rounded-lg">
-                            <button onClick={() => toggleCategory(category)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
-                                <h3 className="text-lg font-semibold text-gray-700">{category} ({items.length})</h3>
-                                {openCategories[category] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                            </button>
-                            {openCategories[category] && (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">R-Value</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost Price</th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {items.map((material) => (
-                                                <tr key={material.id}>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{material.materialName}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.supplier}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.brand}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{material.rValue}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        ${(material.costPerUnit || material.costPrice || 0).toFixed(2)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <button onClick={() => { setEditingMaterial(material); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
-                                                            <Edit size={18} />
-                                                        </button>
-                                                        <button onClick={() => setMaterialToDelete(material)} className="text-red-600 hover:text-red-900">
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    ))
-                ) : (
-                    <div className="text-center py-8 text-gray-500">
-                        No materials found matching your search criteria.
-                        {(searchTerm || filters.category || filters.supplier || filters.brand) && (
-                            <button 
-                                onClick={resetFilters}
-                                className="block mx-auto mt-2 text-blue-500 hover:underline"
-                            >
-                                Reset filters
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-            {isModalOpen && (
-                <MaterialModal
-                    material={editingMaterial}
-                    onSave={handleSave}
-                    onClose={() => setIsModalOpen(false)}
-                />
-            )}
-            {isImporting && (
-                <CSVImporter
-                    collectionRef={materialsCollectionRef}
-                    fieldMappings={materialFieldMappings}
-                    onComplete={() => setIsImporting(false)}
-                />
-            )}
-            {isClearing && (
-                <ConfirmationModal
-                    title="Clear Database"
-                    message="Are you sure you want to delete ALL materials?"
-                    onConfirm={handleClearDatabase}
-                    onCancel={() => setIsClearing(false)}
-                />
-            )}
-            {materialToDelete && (
-                <ConfirmationModal
-                    title="Delete Material"
-                    message={`Are you sure you want to delete "${materialToDelete.materialName}"?`}
-                    confirmText="Delete"
-                    onConfirm={handleDelete}
-                    onCancel={() => setMaterialToDelete(null)}
-                />
-            )}
+
+            {isModalOpen && <MaterialModal material={currentMaterial} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
+            {isConfirmOpen && <ConfirmationModal title="Delete Material" message={`Delete ${materialToDelete?.materialName}?`} onClose={() => setIsConfirmOpen(false)} onConfirm={() => { deleteMaterial(materialToDelete.id); setIsConfirmOpen(false); }} />}
+            {isImportOpen && <CSVImporter collectionRef={getMaterialsCollection()} fieldMappings={materialFieldMappings} onComplete={() => setIsImportOpen(false)} />}
+            {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Materials Database" message="Are you absolutely sure? This will permanently delete all materials and cannot be undone." onConfirm={handleDeleteDatabase} onClose={() => setIsDeleteDbConfirmOpen(false)} />}
         </div>
     );
 };

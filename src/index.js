@@ -1,16 +1,32 @@
-// --- Entry Point for React App ---
-// Renders the main App component into the root DOM node.
-// Uses React 18+ createRoot API.
-// Optionally imports global styles from index.css.
+// src/index.js
+import React from 'react'; //
+import { createRoot } from 'react-dom/client'; //
+import { BrowserRouter as Router } from 'react-router-dom'; //
+import App from './App'; //
+import { AuthProvider } from './contexts/AuthContext'; //
+import { MaterialsProvider } from './contexts/MaterialsContext'; //
+import { LabourProvider } from './contexts/LabourContext'; //
+import { CustomersProvider } from './contexts/CustomersContext'; //
+import { ColorKeywordsProvider } from './contexts/ColorKeywordsContext'; //
+import './index.css'; //
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css'; // Optional: Only if you have custom global styles
+const container = document.getElementById('root'); //
+const root = createRoot(container); //
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <Router>
+      <AuthProvider>
+        <ColorKeywordsProvider>
+          <CustomersProvider>
+            <MaterialsProvider>
+              <LabourProvider>
+                <App />
+              </LabourProvider>
+            </MaterialsProvider>
+          </CustomersProvider>
+        </ColorKeywordsProvider>
+      </AuthProvider>
+    </Router>
   </React.StrictMode>
-);
+); //

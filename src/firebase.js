@@ -1,35 +1,52 @@
-// --- Firebase Initialization & Configuration ---
-// This module centralizes all Firebase setup and exports for the app.
-// It supports both static config (local dev) and dynamic config (prod/cloud environments).
-
+// src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection } from "firebase/firestore";
+import { getFirestore, collection, getDocs, writeBatch, doc } from "firebase/firestore";
 
-// --- Dynamic Configuration Support ---
-const firebaseConfigString = typeof __firebase_config !== 'undefined'
-  ? __firebase_config
-  : JSON.stringify({
-      apiKey: "AIzaSyCU4oA__sV1wCjGdRy_pVYGhq1Hc_BYM3M",
-      authDomain: "reuben-s-testt.firebaseapp.com",
-      projectId: "reuben-s-testt",
-      storageBucket: "reuben-s-testt.firebasestorage.app",
-      messagingSenderId: "888500392763",
-      appId: "1:888500392763:web:68ce9aa69f96458424dd1e"
-      // (measurementId is optional for most apps)
-    });
-
-const firebaseConfig = JSON.parse(firebaseConfigString);
-
-// --- Use your new appId (projectId is fine) ---
-export const appId = "reuben-s-testt";
+const firebaseConfig = {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID
+};
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// --- Export customers collection ref for re-use ---
-export const customersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
+const getCollectionRef = (collectionName) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return null;
+  return collection(db, 'artifacts', uid, collectionName);
+};
 
-// --- Export App (optional, for advanced usage) ---
+export const getWorksheetsCollection   = () => getCollectionRef('worksheets');
+export const getMaterialsCollection    = () => getCollectionRef('materials');
+export const getLabourRatesCollection  = () => getCollectionRef('labourRates');
+export const getCustomersCollection    = () => getCollectionRef('customers');
+
+// NEW: Function to delete all documents in a collection
+export const deleteEntireCollection = async (collectionName) => {
+    const collectionRef = getCollectionRef(collectionName);
+    if (!collectionRef) {
+        console.error("User not authenticated, cannot delete collection.");
+        return;
+    }
+    try {
+        const querySnapshot = await getDocs(collectionRef);
+        const batch = writeBatch(db);
+        querySnapshot.forEach((docSnapshot) => {
+            batch.delete(doc(collectionRef, docSnapshot.id));
+        });
+        await batch.commit();
+        console.log(`Successfully deleted all documents from ${collectionName}.`);
+    } catch (error) {
+        console.error(`Error deleting collection ${collectionName}:`, error);
+        // Optionally, re-throw the error to be handled by the UI
+        throw error;
+    }
+};
+
 export { app };

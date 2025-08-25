@@ -1,3 +1,4 @@
+// src/components/quote/QuoteSummary.js
 import React from 'react';
 
 /**

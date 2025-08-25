@@ -1,67 +1,46 @@
-// --- Pricing Calculator Page ---
-// Supports customer selection and custom pricing integration.
-
+// src/pages/Calculator.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, appId } from '../firebase';
-import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { Plus, Trash2, X, Copy, Users } from 'lucide-react';
+import { useMaterials } from '../contexts/MaterialsContext';
+import { useLabour } from '../contexts/LabourContext';
+import { useCustomers } from '../contexts/CustomersContext';
+import { getWorksheetsCollection } from '../firebase';
+import { addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { Plus, Trash2, Copy, Users } from 'lucide-react';
 import PasteParser from '../components/quote/PasteParser';
 import XeroSummaryModal from '../components/quote/XeroSummaryModal';
 import QuoteSummary from '../components/quote/QuoteSummary';
 import { calculateTotals } from '../utils/calculateTotals';
+import CustomerSelectionModal from '../components/customers/CustomerSelectionModal';
 
-// --- Firestore collection refs ---
-const worksheetsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'worksheets');
-const materialsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
-const labourRatesCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'labourRates');
-const customersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
-
-// --- Main Calculator Component ---
 const Calculator = ({ worksheet, onBack }) => {
+    const { materials, loading: materialsLoading } = useMaterials();
+    const { labourRates, loading: labourLoading } = useLabour();
+    const { customers, loading: customersLoading } = useCustomers();
+
     const [worksheetData, setWorksheetData] = useState({
-        worksheetName: '',
-        customerName: '',
-        customerId: '',
-        status: 'Draft',
-        marginPercentage: 25,
-        groups: [],
+        worksheetName: '', customerName: '', customerId: '',
+        status: 'Draft', marginPercentage: 25, groups: [],
     });
-    const [materials, setMaterials] = useState([]);
-    const [labourRates, setLabourRates] = useState([]);
-    const [customers, setCustomers] = useState([]);
+    const [worksheetsCollectionRef, setWorksheetsCollectionRef] = useState(null);
     const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [errorsByGroup, setErrorsByGroup] = useState({});
-    const [searchTerm, setSearchTerm] = useState('');
 
-    // --- Firestore fetches ---
     useEffect(() => {
-        const unsubMaterials = onSnapshot(materialsCollectionRef, (snap) => setMaterials(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const unsubLabour = onSnapshot(labourRatesCollectionRef, (snap) => setLabourRates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const unsubCustomers = onSnapshot(customersCollectionRef, (snap) => setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        return () => { unsubMaterials(); unsubLabour(); unsubCustomers(); };
+        setWorksheetsCollectionRef(getWorksheetsCollection());
     }, []);
 
-    // --- Worksheet Data load ---
     useEffect(() => {
         if (worksheet) {
-            setWorksheetData({
-                ...worksheet,
-                groups: worksheet.groups || []
-            });
+            setWorksheetData({ ...worksheet, groups: worksheet.groups || [] });
         } else {
             setWorksheetData({
-                worksheetName: '',
-                customerName: '',
-                customerId: '',
-                status: 'Draft',
-                marginPercentage: 25,
-                groups: [],
+                worksheetName: '', customerName: '', customerId: '',
+                status: 'Draft', marginPercentage: 25, groups: [],
             });
         }
     }, [worksheet]);
 
-    // --- Input Validation ---
     useEffect(() => {
         const errorsByGroupTemp = {};
         (worksheetData.groups || []).forEach((group, gIdx) => {
@@ -69,31 +48,25 @@ const Calculator = ({ worksheet, onBack }) => {
             errorsByGroupTemp[gIdx] = {};
             group.lineItems.forEach((item, lIdx) => {
                 const errors = {};
-                if (!item.materialId) {
-                    errors.materialId = 'Please select a material.';
-                }
-                if (!item.quantity || isNaN(item.quantity) || item.quantity <= 0) {
+                if (!item.materialId) errors.materialId = 'Please select a material.';
+                if (!item.quantity || isNaN(item.quantity) || item.quantity <= 0)
                     errors.quantity = 'Quantity must be greater than zero.';
-                }
                 errorsByGroupTemp[gIdx][lIdx] = errors;
             });
         });
         setErrorsByGroup(errorsByGroupTemp);
     }, [worksheetData]);
 
-    // --- Find selected customer ---
     const selectedCustomer = useMemo(() =>
         customers.find(c => c.id === worksheetData.customerId),
         [customers, worksheetData.customerId]
     );
 
-    // --- Calculation Engine ---
     const calculations = useMemo(() =>
         calculateTotals(worksheetData, materials, labourRates, selectedCustomer),
         [worksheetData, materials, labourRates, selectedCustomer]
     );
 
-    // --- Form Handlers ---
     const handleInputChange = (e) => {
         const { name, value, type } = e.target;
         setWorksheetData(prev => ({
@@ -102,7 +75,6 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
-    // --- Customer Selection ---
     const handleCustomerSelect = (customer) => {
         setWorksheetData(prev => ({
             ...prev,
@@ -112,94 +84,8 @@ const Calculator = ({ worksheet, onBack }) => {
                 ? customer.pricingRules?.materialMarkupPercentage ?? prev.marginPercentage
                 : prev.marginPercentage
         }));
-        setIsCustomerModalOpen(false);
     };
 
-    // --- Modal for selecting customer ---
-    const filteredCustomers = useMemo(() => {
-        const term = searchTerm.toLowerCase();
-        return customers.filter(
-            customer =>
-                customer.name?.toLowerCase().includes(term) ||
-                customer.contactPerson?.toLowerCase().includes(term) ||
-                customer.email?.toLowerCase().includes(term) ||
-                customer.phone?.toLowerCase().includes(term) ||
-                customer.notes?.toLowerCase().includes(term)
-        );
-    }, [customers, searchTerm]);
-
-    const CustomerSelectionModal = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Select Customer</h3>
-                    <button onClick={() => setIsCustomerModalOpen(false)} className="text-gray-500 hover:text-gray-800">
-                        <X size={24} />
-                    </button>
-                </div>
-                <div className="mb-4">
-                    <input
-                        type="text"
-                        placeholder="Search customers..."
-                        className="w-full p-2 border rounded-md"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pricing</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredCustomers.map(customer => (
-                                <tr key={customer.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {customer.name}
-                                        {customer.isBuilder && (
-                                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                Builder
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {customer.contactPerson}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {customer.customPricing ? (
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                Custom ({customer.pricingRules?.materialMarkupPercentage ?? 25}% markup)
-                                            </span>
-                                        ) : 'Standard'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            onClick={() => handleCustomerSelect(customer)}
-                                            className="text-indigo-600 hover:text-indigo-900"
-                                        >
-                                            Select
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="mt-6 flex justify-end">
-                    <button onClick={() => setIsCustomerModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md">
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-
-    // --- Quote Group & Line Item handlers ---
     const addGroup = () => {
         setWorksheetData(prev => ({
             ...prev,
@@ -264,7 +150,6 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
-    // --- Paste Parser Handler ---
     const handleParsedGroups = (parsedGroups) => {
         setWorksheetData(prev => ({
             ...prev,
@@ -279,8 +164,8 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
-    // --- Save Handler ---
     const handleSave = async () => {
+        if (!worksheetsCollectionRef) return;
         let hasErrors = false;
         Object.values(errorsByGroup).forEach(groupErrors => {
             Object.values(groupErrors).forEach(lineErrors => {
@@ -310,7 +195,6 @@ const Calculator = ({ worksheet, onBack }) => {
         onBack();
     };
 
-    // --- WorksheetGroup subcomponent ---
     const WorksheetGroup = ({
         group, groupIndex, onGroupChange, onRemoveGroup,
         onAddLineItem, onRemoveLineItem, onLineItemChange,
@@ -364,14 +248,17 @@ const Calculator = ({ worksheet, onBack }) => {
                         </button>
                     </div>
                 ))}
-                <button onClick={() => onAddLineItem(groupIndex)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                <button onClick={() => onAddLineItem(groupIndex)} className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium">
                     <Plus size={16} className="mr-1" />Add Material Line
                 </button>
             </div>
         </div>
     );
 
-    // --- Main Render ---
+    if (materialsLoading || labourLoading || customersLoading) {
+        return <div className="text-center p-8 text-gray-500">Loading Core Data...</div>;
+    }
+
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
@@ -424,7 +311,6 @@ const Calculator = ({ worksheet, onBack }) => {
                             <input type="number" name="marginPercentage" id="marginPercentage" value={worksheetData.marginPercentage} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
                     </div>
-                    {/* Quote Groups */}
                     <div className="space-y-4">
                         {(worksheetData.groups || []).map((group, index) => (
                             <WorksheetGroup
@@ -442,10 +328,9 @@ const Calculator = ({ worksheet, onBack }) => {
                         ))}
                     </div>
                     <button onClick={addGroup} className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium pt-2">
-                        <Plus size={16} className="mr-1"/>Add Quote Group
+                        <Plus size={16} className="mr-1" />Add Quote Group
                     </button>
                 </div>
-                {/* Sticky sidebar for calculations */}
                 <div className="lg:col-span-1 lg:sticky top-24 bg-white p-6 rounded-lg shadow-md space-y-4">
                     <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Live Calculations</h3>
                     <QuoteSummary calculations={calculations} />
@@ -454,12 +339,18 @@ const Calculator = ({ worksheet, onBack }) => {
                             {worksheetData.id ? 'Update Worksheet' : 'Save Worksheet'}
                         </button>
                         <button onClick={() => setIsXeroModalOpen(true)} className="w-full bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700 font-semibold flex items-center justify-center">
-                            <Copy size={16} className="mr-2"/>Finalize for Xero
+                            <Copy size={16} className="mr-2" />Finalise for Xero
                         </button>
                     </div>
                 </div>
             </div>
-            {isCustomerModalOpen && <CustomerSelectionModal />}
+            {isCustomerModalOpen && (
+                <CustomerSelectionModal
+                    customers={customers}
+                    onSelect={handleCustomerSelect}
+                    onClose={() => setIsCustomerModalOpen(false)}
+                />
+            )}
             {isXeroModalOpen && (
                 <XeroSummaryModal worksheetData={worksheetData} calculations={calculations} onClose={() => setIsXeroModalOpen(false)} />
             )}

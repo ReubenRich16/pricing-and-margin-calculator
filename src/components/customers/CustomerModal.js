@@ -1,3 +1,4 @@
+// src/components/customers/CustomerModal.js
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 

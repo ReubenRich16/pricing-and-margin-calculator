@@ -1,3 +1,4 @@
+// src/components/quote/PasteParser.js
 import React, { useState } from 'react';
 
 /**
