@@ -1,0 +1,28 @@
+Name,Application,Area,Timber Frame ,Steel Frame ,Unit,Notes/Conditions,Keywords
+,Bulk Insulation,Ceiling Insulation,$1.50,$2.00,m²,,"Ceiling, Suspended Ceiling, Bulk Insulation"
+,Bulk Insulation,External/Parti Walls,$1.20,$1.70,m²,,"Party, External, Adjoining, Bulk Insulation"
+,Bulk Insulation,Internal Walls,$1.30,$1.80,m²,,"Internal, Bulk Insulation"
+,Bulk Insulation,Between/Cantilever Floor,$1.40,$1.90,m²,,"Between, Cantilever, Bulk Insulation"
+,Subfloor,Subfloor (From Above),$4.00,$4.50,m²,Straping required,"Subfloor, Bulk Insulation"
+,Retrofit Insulation,Retrofit / Inroof,$4.00,$4.50,m²,Extra Labour for Tight Access to be confirmed at install.,"Ceiling, Roof, Bulk Insulation"
+,Retrofit Insulation,Underfloor (From Below),$9.00,$9.50,m²,Extra Labour for Tight Access to be confirmed at install.,"Subfloor, Bulk Insulation"
+,Specialty Insulation,Doubling batts,$2.50,$3.00,m²,,"x2, Double"
+,Specialty Insulation,Doubling batts (High),$3.00,$3.50,m²,"Double batts. R4.0, R5.0, R6.0 only","R4.0 x2, R5.0 x2, R6.0 x2"
+,Specialty Insulation,R2.7NB| R3.1NB | R4.0SHD,$1.80,$2.30,m²,,"R2.7NB, R3.1NB, R4.0SHD, R2.7, R3.1, Bulk Insulation"
+,Specialty Insulation,R7.0,$2.50,$3.00,m²,,"R7.0, Bulk Insulation"
+,Specialty Insulation,R8.0,$3.00,$3.50,m²,,"R8.0, Bulk Insulation"
+,Fire Protection,Hardie Fire / Fireproof,$3.50,$4.00,m²,,"Fire, Hardiefire, Fireproof, Rockwool, Bulk Insulation"
+,Wall Wrap,Wall Wrap,$1.80,$3.00,m²,,"Wall Wrap, Sarking, Wrap, Membrane, Brane"
+,Wall Wrap,Dampcourse,$25.00,$25.00,Per level,,"Dampcourse, Wall Wrap"
+,Wall Wrap,Window Taping,$35.00,$35.00,Dwelling,,"Wall Wrap, Sarking, Wrap, Membrane"
+,Rigid Panels/Soffit,Rigid Wall,$15.00,$15.00,m²,,Rigid 
+,Rigid Panels/Soffit,Soffit,$17.00,$17.00,m²,,"Rigid, Soffit"
+,Acoustic Pipe Lagging,Pipe Lagging,$10.00,$10.00,m²,,"Pipe Lag, Pipe, Lagging"
+,Labour Add Ons/Other,Strapping,$0.50,$0.50,m²,,Strap
+,Labour Add Ons/Other,Cutting,$0.50,$0.50,m²,To be confirmed at install,
+,Labour Add Ons/Other,High Ceiling (3.0m),$0.50,$0.50,m²,To be confirmed at install,
+,Labour Add Ons/Other,High Ceiling (3.5m),$0.75,$0.75,m²,To be confirmed at install,
+,Labour Add Ons/Other,High Ceiling (4.0m+),$1.00,$1.00,m²,To be confirmed at install,
+,Labour Add Ons/Other,Travel (From Moorabbin),$0.55,$0.55,km,"From 30 Bignell Rd, Moorabbin",
+,Labour Add Ons/Other,NPC (Non-Productive Call-Out),$80.00,$80.00,callout,Charged when site issues prevent work,
+,Labour Add Ons/Other,Window Protection,$30.00,$35.00,Per window,,
