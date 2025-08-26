@@ -137,7 +137,7 @@ const LabourManager = () => {
 
             {isModalOpen && <LabourModal rate={currentRate} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
             {isConfirmOpen && <ConfirmationModal title="Delete Labour Rate" message={`Delete ${rateToDelete?.description}?`} onConfirm={() => { deleteLabourRate(rateToDelete.id); setIsConfirmOpen(false); }} onClose={() => setIsConfirmOpen(false)} />}
-            {isImportOpen && <CSVImporter collectionRef={getLabourRatesCollection()} fieldMappings={labourFieldMappings} onComplete={() => setIsImportOpen(false)} />}
+            {isImportOpen && <CSVImporter isOpen={isImportOpen} collectionRef={getLabourRatesCollection()} fieldMappings={labourFieldMappings} onComplete={() => setIsImportOpen(false)} />}
             {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Labour Database" message="Are you absolutely sure? This will permanently delete all labour rates and cannot be undone." onConfirm={handleDeleteDatabase} onClose={() => setIsDeleteDbConfirmOpen(false)} />}
         </div>
     );

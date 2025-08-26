@@ -1,21 +1,44 @@
 // src/pages/MaterialsManager.js
-// Materials database (CRUD) with filtering, grouping and modal editing
-
 import React, { useState, useMemo } from 'react';
-import { PlusCircle } from 'lucide-react';
-
+import { PlusCircle, Upload } from 'lucide-react';
 import { useMaterials } from '../contexts/MaterialsContext';
 import FilterBar from '../components/common/FilterBar';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import MaterialModal from '../components/materials/MaterialModal';
 import MaterialsTable from '../components/materials/MaterialsTable';
-
+import CSVImporter from '../components/common/CSVImporter';
 import { filterBySearchTerm } from '../utils/filter';
 import { groupMaterials } from '../utils/materialsGrouping';
+import { getMaterialsCollection } from '../firebase'; // <-- FIX: Import this
 
 const baseFilterConfig = [
   { key: 'search', type: 'text', placeholder: 'Search name, category, supplier, brand...' },
 ];
+
+// --- Material CSV Field Mappings (UPDATED) ---
+const materialFieldMappings = {
+    'Supplier': { name: 'supplier' },
+    'Brand Name': { name: 'brand' },
+    'Product Name': { name: 'materialName', required: true, isMatchKey: true },
+    'Application': { name: 'category' },
+    'R-Value': { name: 'rValue' },
+    'Thickness (mm)': { name: 'thickness', type: 'number' },
+    'Length (mm)': { name: 'length', type: 'number' },
+    'Width (mm)': { name: 'width', type: 'number' },
+    'Coverage/Unit': { name: 'coverage', type: 'number' },
+    'Coverage Unit': { name: 'coverageUnit' },
+    'Unit': { name: 'unit' },
+    'Density (kg/m³)': { name: 'density', type: 'number' },
+    'Cost/Unit': { name: 'costPrice', type: 'number' },
+    'S Cost/Unit': { name: 'sCostUnit', type: 'number' },
+    'S+I Timber/Coverage Unit': { name: 's_i_timber', type: 'number' },
+    'S+I Steel/Coverage Unit': { name: 's_i_steel', type: 'number' },
+    'Retrofit (existing ceiling) S+I/Coverage Unit': { name: 'retrofit_ceiling_rate', type: 'number' },
+    'Subfloor S+I/Coverage Unit': { name: 'subfloor_rate', type: 'number' },
+    'Retrofit (Subfloor) S+I/Coverage Unit': { name: 'retrofit_subfloor_rate', type: 'number' },
+    'Notes': { name: 'notes' },
+    'Keywords': { name: 'keywords', type: 'array' },
+};
 
 const MaterialsManager = () => {
   const { materials = [], loading, error, addMaterial, updateMaterial, deleteMaterial } = useMaterials();
@@ -32,6 +55,9 @@ const MaterialsManager = () => {
   const [editingMaterial, setEditingMaterial] = useState(null);
 
   const [deleteState, setDeleteState] = useState({ open: false, material: null });
+
+  // --- CSV Import Modal ---
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Build dropdown options from current data
   const categoryOptions = useMemo(
@@ -116,6 +142,12 @@ const MaterialsManager = () => {
               {showDetails ? 'Hide Detail Columns' : 'Show Detail Columns'}
             </button>
             <button
+              onClick={() => setIsImportOpen(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"
+            >
+              <Upload size={20} /> Import CSV
+            </button>
+            <button
               onClick={handleAddNew}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"
             >
@@ -166,6 +198,15 @@ const MaterialsManager = () => {
           onConfirm={confirmDeleteNow}
           onClose={() => setDeleteState({ open: false, material: null })}
           confirmText="Delete"
+        />
+      )}
+
+      {isImportOpen && (
+        <CSVImporter
+          isOpen={isImportOpen}
+          collectionRef={getMaterialsCollection()} // <-- FIX: Pass real collection reference
+          fieldMappings={materialFieldMappings}
+          onComplete={() => setIsImportOpen(false)}
         />
       )}
     </div>
