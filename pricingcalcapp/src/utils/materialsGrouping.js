@@ -13,8 +13,14 @@ export function getActiveColumns(items, showDetails) {
 
     let orderedKeys = materialColumns.map(col => col.key);
 
-    // Remove 'notes' and 'keywords' ALWAYS
-    orderedKeys = orderedKeys.filter(key => key !== 'notes' && key !== 'keywords');
+    // Remove 'notes', 'keywords', 'coverageUnit', and 'unitOfMeasure' ALWAYS
+    orderedKeys = orderedKeys.filter(
+        key =>
+            key !== 'notes' &&
+            key !== 'keywords' &&
+            key !== 'coverageUnit' &&
+            key !== 'unitOfMeasure'
+    );
 
     // Remove 'length' unless details are ON
     if (!showDetails) {
