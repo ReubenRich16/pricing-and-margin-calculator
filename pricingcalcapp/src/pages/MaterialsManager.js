@@ -1,176 +1,175 @@
 // src/pages/MaterialsManager.js
-// --- Materials Database Management ---
-// Handles CRUD operations for materials with filtering and search functionality
+// Materials database (CRUD) with filtering, grouping and modal editing
 
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../firebase';
-import FilterBar from './FilterBar';
-import MaterialForm from './MaterialForm';
-import MaterialsList from './MaterialsList';
+import React, { useState, useMemo } from 'react';
+import { PlusCircle } from 'lucide-react';
+
+import { useMaterials } from '../contexts/MaterialsContext';
+import FilterBar from '../components/common/FilterBar';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import MaterialModal from '../components/materials/MaterialModal';
+import MaterialsTable from '../components/materials/MaterialsTable';
+
+import { filterBySearchTerm } from '../utils/filter';
+import { groupMaterials } from '../utils/materialsGrouping';
+
+const baseFilterConfig = [
+  { key: 'search', type: 'text', placeholder: 'Search name, category, supplier, brand...' },
+];
 
 const MaterialsManager = () => {
-    const [materials, setMaterials] = useState([]);
-    const [filteredMaterials, setFilteredMaterials] = useState([]);
-    const [filters, setFilters] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [editingMaterial, setEditingMaterial] = useState(null);
+  const { materials = [], loading, error, addMaterial, updateMaterial, deleteMaterial } = useMaterials();
 
-    // Filter configuration for the FilterBar
-    const filterConfig = [
-        { key: 'search', type: 'text', placeholder: 'Search materials...' },
-        { key: 'category', type: 'select', placeholder: 'Filter by category', options: ['Bulk', 'Batts', 'Boards', 'Adhesives', 'Membranes'] },
-        { key: 'supplier', type: 'select', placeholder: 'Filter by supplier', options: ['Bradford', 'Knauf', 'Earthwool', 'CSR', 'Fletcher'] }
-    ];
+  const [filters, setFilters] = useState({ search: '', category: '', brand: '', supplier: '' });
+  const [showDetails, setShowDetails] = useState(false);
 
-    // Load materials from Firestore
-    useEffect(() => {
-        const fetchMaterials = async () => {
-            try {
-                setLoading(true);
-                const materialsCollection = collection(db, 'materials');
-                const materialsSnapshot = await getDocs(materialsCollection);
-                const materialsList = materialsSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setMaterials(materialsList);
-                setFilteredMaterials(materialsList);
-            } catch (error) {
-                console.error('Error fetching materials:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+  const [collapsedCat, setCollapsedCat] = useState({});
+  const [collapsedBrand, setCollapsedBrand] = useState({});
+  const [collapsedSupplier, setCollapsedSupplier] = useState({});
+  const [collapsedProduct, setCollapsedProduct] = useState({});
 
-        fetchMaterials();
-    }, []);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState(null);
 
-    // Apply filters whenever filters or materials change
-    useEffect(() => {
-        let filtered = materials;
+  const [deleteState, setDeleteState] = useState({ open: false, material: null });
 
-        // Search filter
-        if (filters.search) {
-            const searchTerm = filters.search.toLowerCase();
-            filtered = filtered.filter(material => 
-                material.name?.toLowerCase().includes(searchTerm) ||
-                material.description?.toLowerCase().includes(searchTerm) ||
-                material.category?.toLowerCase().includes(searchTerm) ||
-                material.supplier?.toLowerCase().includes(searchTerm)
-            );
-        }
+  // Build dropdown options from current data
+  const categoryOptions = useMemo(
+    () => Array.from(new Set((materials || []).map(m => m.category).filter(Boolean))).sort(),
+    [materials]
+  );
+  const brandOptions = useMemo(
+    () => Array.from(new Set((materials || []).map(m => m.brand).filter(Boolean))).sort(),
+    [materials]
+  );
+  const supplierOptions = useMemo(
+    () => Array.from(new Set((materials || []).map(m => m.supplier).filter(Boolean))).sort(),
+    [materials]
+  );
 
-        // Category filter
-        if (filters.category) {
-            filtered = filtered.filter(material => material.category === filters.category);
-        }
+  const filterConfig = useMemo(() => {
+    const cfg = [...baseFilterConfig];
+    cfg.push({ key: 'category', type: 'select', placeholder: 'Category', options: categoryOptions });
+    cfg.push({ key: 'brand', type: 'select', placeholder: 'Brand', options: brandOptions });
+    cfg.push({ key: 'supplier', type: 'select', placeholder: 'Supplier', options: supplierOptions });
+    return cfg;
+  }, [categoryOptions, brandOptions, supplierOptions]);
 
-        // Supplier filter
-        if (filters.supplier) {
-            filtered = filtered.filter(material => material.supplier === filters.supplier);
-        }
+  // Text search across key fields
+  const searched = useMemo(
+    () => filterBySearchTerm(materials, filters.search, ['materialName', 'category', 'supplier', 'brand', 'rValue', 'notes', 'keywords']),
+    [materials, filters.search]
+  );
 
-        setFilteredMaterials(filtered);
-    }, [filters, materials]);
-
-    // Handle material deletion
-    const handleDelete = async (materialId) => {
-        if (window.confirm('Are you sure you want to delete this material?')) {
-            try {
-                await deleteDoc(doc(db, 'materials', materialId));
-                setMaterials(materials.filter(m => m.id !== materialId));
-            } catch (error) {
-                console.error('Error deleting material:', error);
-            }
-        }
-    };
-
-    // Handle material save (add or edit)
-    const handleSave = (savedMaterial) => {
-        if (editingMaterial) {
-            // Update existing material
-            setMaterials(materials.map(m => 
-                m.id === savedMaterial.id ? savedMaterial : m
-            ));
-            setEditingMaterial(null);
-        } else {
-            // Add new material
-            setMaterials([...materials, savedMaterial]);
-        }
-        setShowAddForm(false);
-    };
-
-    // Handle edit
-    const handleEdit = (material) => {
-        setEditingMaterial(material);
-        setShowAddForm(true);
-    };
-
-    // Handle cancel form
-    const handleCancel = () => {
-        setShowAddForm(false);
-        setEditingMaterial(null);
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-lg text-gray-600">Loading materials...</div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Materials Database</h1>
-                <button
-                    onClick={() => setShowAddForm(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                    Add Material
-                </button>
-            </div>
-
-            {/* Filter Bar */}
-            <FilterBar 
-                filters={filters} 
-                onFilterChange={setFilters} 
-                filterConfig={filterConfig}
-            />
-
-            {/* Material Form Modal */}
-            {showAddForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
-                        <MaterialForm
-                            material={editingMaterial}
-                            onSave={handleSave}
-                            onCancel={handleCancel}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Materials List */}
-            <MaterialsList
-                materials={filteredMaterials}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-            />
-
-            {/* Empty state */}
-            {filteredMaterials.length === 0 && !loading && (
-                <div className="text-center py-12">
-                    <div className="text-gray-500 text-lg">
-                        {materials.length === 0 ? 'No materials found. Add your first material!' : 'No materials match your filters.'}
-                    </div>
-                </div>
-            )}
-        </div>
+  // Exact dropdown filters
+  const filteredMaterials = useMemo(() => {
+    return searched.filter(m =>
+      (filters.category ? m.category === filters.category : true) &&
+      (filters.brand ? m.brand === filters.brand : true) &&
+      (filters.supplier ? m.supplier === filters.supplier : true)
     );
+  }, [searched, filters.category, filters.brand, filters.supplier]);
+
+  const groupedMaterials = useMemo(() => groupMaterials(filteredMaterials), [filteredMaterials]);
+
+  const handleAddNew = () => {
+    setEditingMaterial(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (material) => {
+    setEditingMaterial(material);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (data) => {
+    if (editingMaterial && editingMaterial.id) {
+      await updateMaterial(editingMaterial.id, data);
+    } else {
+      await addMaterial(data);
+    }
+    setIsModalOpen(false);
+    setEditingMaterial(null);
+  };
+
+  const requestDelete = (material) => setDeleteState({ open: true, material });
+  const confirmDeleteNow = async () => {
+    if (deleteState.material?.id) {
+      await deleteMaterial(deleteState.material.id);
+    }
+    setDeleteState({ open: false, material: null });
+  };
+
+  if (loading) return <div className="p-6">Loading materials...</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-800">Materials Manager</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDetails(v => !v)}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              {showDetails ? 'Hide Detail Columns' : 'Show Detail Columns'}
+            </button>
+            <button
+              onClick={handleAddNew}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"
+            >
+              <PlusCircle size={20} /> Add New
+            </button>
+          </div>
+        </div>
+
+        <FilterBar
+          filters={filters}
+          onFilterChange={setFilters}
+          filterConfig={filterConfig}
+        />
+
+        <MaterialsTable
+          groupedMaterials={groupedMaterials}
+          collapsedCat={collapsedCat}
+          setCollapsedCat={setCollapsedCat}
+          collapsedBrand={collapsedBrand}
+          setCollapsedBrand={setCollapsedBrand}
+          collapsedSupplier={collapsedSupplier}
+          setCollapsedSupplier={setCollapsedSupplier}
+          collapsedProduct={collapsedProduct}
+          setCollapsedProduct={setCollapsedProduct}
+          showDetails={showDetails}
+          onEdit={handleEdit}
+          onDelete={requestDelete}
+        />
+
+        {filteredMaterials.length === 0 && (
+          <div className="text-center text-gray-500 py-10">No materials match your filters.</div>
+        )}
+      </div>
+
+      {isModalOpen && (
+        <MaterialModal
+          material={editingMaterial}
+          onSave={handleSave}
+          onClose={() => { setIsModalOpen(false); setEditingMaterial(null); }}
+        />
+      )}
+
+      {deleteState.open && (
+        <ConfirmationModal
+          isOpen={deleteState.open}
+          title="Delete Material"
+          message={`Delete "${deleteState.material?.materialName || 'this material'}"?`}
+          onConfirm={confirmDeleteNow}
+          onClose={() => setDeleteState({ open: false, material: null })}
+          confirmText="Delete"
+        />
+      )}
+    </div>
+  );
 };
 
 export default MaterialsManager;

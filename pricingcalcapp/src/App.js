@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth } from './firebase';
-import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth'; // REMOVED unused signOut import
 import MainApplication from './components/layout/MainApplication';
 
 // --- Main App Logic ---
