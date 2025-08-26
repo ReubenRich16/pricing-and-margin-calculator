@@ -12,61 +12,65 @@ export function getActiveColumns(items, showDetails) {
 
     let orderedKeys = materialColumns.map(col => col.key);
 
+    // Always remove 'notes' and 'keywords'
     orderedKeys = orderedKeys.filter(key => key !== 'notes' && key !== 'keywords');
-    if (!showDetails) {
-        orderedKeys = orderedKeys.filter(key => key !== 'length' && key !== 'density');
-    }
-
-    const extraDetailColumns = [
-        'retrofit_ceiling_rate',
-        'subfloor_rate',
-        'retrofit_subfloor_rate'
-    ];
-    if (!showDetails) {
-        orderedKeys = orderedKeys.filter(key => !extraDetailColumns.includes(key));
-    }
-
-    let active = orderedKeys.filter(key =>
-        items.some(i =>
-            i[key] !== undefined &&
-            String(i[key]).trim() !== '' &&
-            i[key] !== 0
-        )
-    );
 
     if (showDetails) {
-        extraDetailColumns.forEach(col => {
-            const hasValue = items.some(i =>
-                i[col] !== undefined &&
-                String(i[col]).trim() !== '' &&
-                i[col] !== 0
+        // Show all columns except notes/keywords (even if empty), for full details mode
+        let active = [...orderedKeys];
+        // S+I logic: show combined if both values are identical in all rows
+        const timberVals = items.map(i => Number(i.s_i_timber || 0));
+        const steelVals = items.map(i => Number(i.s_i_steel || 0));
+        const hasTimber = timberVals.some(v => v > 0);
+        const hasSteel = steelVals.some(v => v > 0);
+        let showCombinedSI = false;
+        if (hasTimber && hasSteel) {
+            const allSame = items.every(i =>
+                Number(i.s_i_timber || 0) === Number(i.s_i_steel || 0)
             );
-            if (hasValue && !active.includes(col)) {
-                active.push(col);
+            if (allSame) {
+                const filtered = active.filter(key => key !== 's_i_timber' && key !== 's_i_steel');
+                filtered.push('s_i_combined');
+                return { active: filtered, showCombinedSI: true };
             }
-        });
-    }
-
-    // --- Force costPrice to always be present ---
-    if (!active.includes('costPrice')) active.push('costPrice');
-
-    // S+I logic: show combined if both values are identical in all rows
-    const timberVals = items.map(i => Number(i.s_i_timber || 0));
-    const steelVals = items.map(i => Number(i.s_i_steel || 0));
-    const hasTimber = timberVals.some(v => v > 0);
-    const hasSteel = steelVals.some(v => v > 0);
-    let showCombinedSI = false;
-    if (hasTimber && hasSteel) {
-        const allSame = items.every(i =>
-            Number(i.s_i_timber || 0) === Number(i.s_i_steel || 0)
-        );
-        if (allSame) {
-            const filtered = active.filter(key => key !== 's_i_timber' && key !== 's_i_steel');
-            filtered.push('s_i_combined');
-            return { active: filtered, showCombinedSI: true };
         }
+        return { active, showCombinedSI: false };
+    } else {
+        // Compact mode: only include columns present in data, remove 'length' and density
+        orderedKeys = orderedKeys.filter(key => key !== 'length' && key !== 'density');
+        const extraDetailColumns = [
+            'retrofit_ceiling_rate',
+            'subfloor_rate',
+            'retrofit_subfloor_rate'
+        ];
+        orderedKeys = orderedKeys.filter(key => !extraDetailColumns.includes(key));
+        let active = orderedKeys.filter(key =>
+            items.some(i =>
+                i[key] !== undefined &&
+                String(i[key]).trim() !== '' &&
+                i[key] !== 0
+            )
+        );
+        // Always force costPrice to be present
+        if (!active.includes('costPrice')) active.push('costPrice');
+        // S+I logic as above
+        const timberVals = items.map(i => Number(i.s_i_timber || 0));
+        const steelVals = items.map(i => Number(i.s_i_steel || 0));
+        const hasTimber = timberVals.some(v => v > 0);
+        const hasSteel = steelVals.some(v => v > 0);
+        let showCombinedSI = false;
+        if (hasTimber && hasSteel) {
+            const allSame = items.every(i =>
+                Number(i.s_i_timber || 0) === Number(i.s_i_steel || 0)
+            );
+            if (allSame) {
+                const filtered = active.filter(key => key !== 's_i_timber' && key !== 's_i_steel');
+                filtered.push('s_i_combined');
+                return { active: filtered, showCombinedSI: true };
+            }
+        }
+        return { active, showCombinedSI };
     }
-    return { active, showCombinedSI };
 }
 
 // Helper: convert R-value to number reliably
