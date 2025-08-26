@@ -14,7 +14,7 @@ export function getActiveColumns(items, showDetails) {
 
     orderedKeys = orderedKeys.filter(key => key !== 'notes' && key !== 'keywords');
     if (!showDetails) {
-        orderedKeys = orderedKeys.filter(key => key !== 'length');
+        orderedKeys = orderedKeys.filter(key => key !== 'length' && key !== 'density');
     }
 
     const extraDetailColumns = [
@@ -46,6 +46,9 @@ export function getActiveColumns(items, showDetails) {
             }
         });
     }
+
+    // --- Force costPrice to always be present ---
+    if (!active.includes('costPrice')) active.push('costPrice');
 
     // S+I logic: show combined if both values are identical in all rows
     const timberVals = items.map(i => Number(i.s_i_timber || 0));

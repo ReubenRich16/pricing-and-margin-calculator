@@ -12,10 +12,11 @@ const customColumnLabels = {
     retrofit_subfloor_rate: 'Retrofit Subfloor S+I',
 };
 
-// Table header renderer
-const renderTableHeader = (cols, showCombinedSI) => (
+// Table header renderer - always includes Cost/Unit, hides Density unless showDetails
+const renderTableHeader = (cols, showCombinedSI, showDetails) => (
     <tr>
         {cols.map(colKey => {
+            if (colKey === 'density' && !showDetails) return null;
             if (colKey in customColumnLabels)
                 return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">{customColumnLabels[colKey]}</th>;
             if (colKey === 'rValue')      return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">R-Value</th>;
@@ -38,38 +39,51 @@ const renderTableHeader = (cols, showCombinedSI) => (
     </tr>
 );
 
-// Table row renderer for a material variant group
+// Table row renderer for a material variant group (compact mode, width dropdown)
 function MaterialVariantRow({
     variants, cols, showCombinedSI, onEdit, onDelete,
-    groupKey, selectedIdx, setSelectedIdx
+    groupKey, selectedIdx, setSelectedIdx, showDetails
 }) {
-    // The currently selected variant (by width)
     const selected = variants[selectedIdx] || variants[0];
-
     return (
         <tr key={groupKey}>
             {cols.map(colKey => {
                 const saleUnit = selected.unitOfMeasure || '';
                 const covUnit = selected.coverageUnit || '';
-                if (colKey === 'width' && variants.length > 1) {
-                    return (
-                        <td key={colKey} className="p-3 text-sm">
-                            <select
-                                value={selectedIdx}
-                                onChange={e => setSelectedIdx(Number(e.target.value))}
-                                className="border rounded px-2 py-1 bg-white text-sm"
-                            >
-                                {variants.map((item, idx) => (
-                                    <option key={item.width || idx} value={idx}>{item.width ? `${item.width}mm` : ''}</option>
-                                ))}
-                            </select>
-                            <span className="ml-1 text-xs text-gray-400">({variants.length} widths)</span>
-                        </td>
-                    );
-                }
+
+                // Inline width cell with dropdown always present for alignment
                 if (colKey === 'width') {
-                    return <td key={colKey} className="p-3 text-sm">{selected.width ? `${selected.width}mm` : ''}</td>;
+                    if (variants.length > 1) {
+                        return (
+                            <td key={colKey} className="p-3 text-sm" style={{ minWidth: 120 }}>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={selectedIdx}
+                                        onChange={e => setSelectedIdx(Number(e.target.value))}
+                                        className="border rounded px-2 py-1 bg-white text-sm"
+                                        style={{ minWidth: 80, textAlign: 'center' }}
+                                    >
+                                        {variants.map((item, idx) => (
+                                            <option key={item.width || idx} value={idx}>{item.width ? `${item.width}mm` : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </td>
+                        );
+                    } else {
+                        // Show label only, same cell styling for alignment
+                        return (
+                            <td key={colKey} className="p-3 text-sm" style={{ minWidth: 120 }}>
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-block px-2 py-1 rounded bg-gray-100 text-gray-700 text-sm" style={{ minWidth: 80, textAlign: 'center' }}>
+                                        {selected.width ? `${selected.width}mm` : ''}
+                                    </span>
+                                </div>
+                            </td>
+                        );
+                    }
                 }
+                if (colKey === 'density' && !showDetails) return null;
                 if (colKey === 'retrofit_ceiling_rate')
                     return <td key={colKey} className="p-3 text-sm">{selected.retrofit_ceiling_rate ? `$${Number(selected.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
                 if (colKey === 'subfloor_rate')
@@ -99,6 +113,44 @@ function MaterialVariantRow({
     );
 }
 
+// Table row renderer for showDetails mode (classic flat row per variant)
+function MaterialFlatRow({ m, cols, showCombinedSI, onEdit, onDelete, showDetails }) {
+    const saleUnit = m.unitOfMeasure || '';
+    const covUnit = m.coverageUnit || '';
+    return (
+        <tr key={m.id}>
+            {cols.map(colKey => {
+                if (colKey === 'density' && !showDetails) return null;
+                if (colKey === 'retrofit_ceiling_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'subfloor_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.subfloor_rate ? `$${Number(m.subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'retrofit_subfloor_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_subfloor_rate ? `$${Number(m.retrofit_subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? formatRValue(m.rValue) : ''}</td>;
+                if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
+                if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
+                if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;
+                if (colKey === 'coverage')    return <td key={colKey} className="p-3 text-sm">{m.coverage ? `${m.coverage} ${covUnit}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 'costPrice')   return <td key={colKey} className="p-3 text-sm text-red-600 font-medium">{m.costPrice ? `$${Number(m.costPrice).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 'sCostUnit')   return <td key={colKey} className="p-3 text-sm font-semibold">{m.sCostUnit ? `$${Number(m.sCostUnit).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_combined')return <td key={colKey} className="p-3 text-sm">{(m.s_i_timber || m.s_i_steel) ? `$${Number(m.s_i_timber || m.s_i_steel || 0).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_timber' && !showCombinedSI)
+                    return <td key={colKey} className="p-3 text-sm">{m.s_i_timber ? `$${Number(m.s_i_timber).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_steel' && !showCombinedSI)
+                    return <td key={colKey} className="p-3 text-sm">{m.s_i_steel ? `$${Number(m.s_i_steel).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'length')      return <td key={colKey} className="p-3 text-sm">{m.length ? `${m.length}mm` : ''}</td>;
+                if (colKey === 'keywords')    return <td key={colKey} className="p-3 text-sm">{Array.isArray(m.keywords) ? m.keywords.join(', ') : m.keywords || ''}</td>;
+                return null;
+            })}
+            <td className="p-3 text-center">
+                <button onClick={() => onEdit(m)} className="text-blue-500 mr-2"><Edit size={18} /></button>
+                <button onClick={() => onDelete(m)} className="text-red-500"><Trash2 size={18} /></button>
+            </td>
+        </tr>
+    );
+}
+
 const MaterialsTable = ({
     groupedMaterials,
     collapsedCat,
@@ -113,7 +165,7 @@ const MaterialsTable = ({
     onEdit,
     onDelete
 }) => {
-    // --- State for width dropdowns per product group ---
+    // --- State for width dropdowns per variant row ---
     const [selectedWidthIdxByRow, setSelectedWidthIdxByRow] = useState({}); // key: groupKey, value: idx
 
     return (
@@ -145,17 +197,29 @@ const MaterialsTable = ({
                                                 let items = supplierProducts[prodName];
                                                 if (!Array.isArray(items)) items = [];
                                                 const { active: cols, showCombinedSI } = getActiveColumns(items, showDetails);
+                                                // Always include costPrice in columns for compact mode
+                                                const colsFinal = showDetails
+                                                    ? cols
+                                                    : Array.from(new Set([...cols, 'costPrice']));
                                                 return (
                                                     <div key={prodName} className="mb-3">
                                                         <div className="font-semibold px-3 py-2 text-gray-700">{prodName} ({items.length})</div>
                                                         <div className="overflow-x-auto border rounded-lg mt-2">
                                                             <table className="min-w-full divide-y divide-gray-200">
                                                                 <thead className="bg-gray-50">
-                                                                    {renderTableHeader(cols, showCombinedSI)}
+                                                                    {renderTableHeader(colsFinal, showCombinedSI, showDetails)}
                                                                 </thead>
                                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                                     {items.map(m =>
-                                                                        renderTableRow(m, cols, showCombinedSI, onEdit, onDelete)
+                                                                        <MaterialFlatRow
+                                                                            key={m.id}
+                                                                            m={m}
+                                                                            cols={colsFinal}
+                                                                            showCombinedSI={showCombinedSI}
+                                                                            showDetails={showDetails}
+                                                                            onEdit={onEdit}
+                                                                            onDelete={onDelete}
+                                                                        />
                                                                     )}
                                                                 </tbody>
                                                             </table>
@@ -189,22 +253,32 @@ const MaterialsTable = ({
                                                             {collapsedSupplier?.[`${category}|${brand}|${supplier}`] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                                                         </button>
                                                         {!collapsedSupplier?.[`${category}|${brand}|${supplier}`] && Object.keys(supplierProducts).map(prodName => {
-                                                            let variantGroups = supplierProducts[prodName];
+                                                            let groupedVariantRows = supplierProducts[prodName];
                                                             // If showDetails is ON, show all variants as separate rows
                                                             if (showDetails) {
-                                                                const items = Array.isArray(variantGroups) ? variantGroups : [];
+                                                                const items = Array.isArray(groupedVariantRows) ? groupedVariantRows : [];
                                                                 const { active: cols, showCombinedSI } = getActiveColumns(items, showDetails);
+                                                                // Always include costPrice
+                                                                const colsFinal = Array.from(new Set([...cols, 'costPrice']));
                                                                 return (
                                                                     <div key={prodName} className="mb-3">
                                                                         <div className="font-semibold px-3 py-2 text-gray-700">{prodName} ({items.length})</div>
                                                                         <div className="overflow-x-auto border rounded-lg mt-2">
                                                                             <table className="min-w-full divide-y divide-gray-200">
                                                                                 <thead className="bg-gray-50">
-                                                                                    {renderTableHeader(cols, showCombinedSI)}
+                                                                                    {renderTableHeader(colsFinal, showCombinedSI, showDetails)}
                                                                                 </thead>
                                                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                                                     {items.map(m =>
-                                                                                        renderTableRow(m, cols, showCombinedSI, onEdit, onDelete)
+                                                                                        <MaterialFlatRow
+                                                                                            key={m.id}
+                                                                                            m={m}
+                                                                                            cols={colsFinal}
+                                                                                            showCombinedSI={showCombinedSI}
+                                                                                            showDetails={showDetails}
+                                                                                            onEdit={onEdit}
+                                                                                            onDelete={onDelete}
+                                                                                        />
                                                                                     )}
                                                                                 </tbody>
                                                                             </table>
@@ -212,27 +286,30 @@ const MaterialsTable = ({
                                                                     </div>
                                                                 );
                                                             }
-                                                            // Otherwise, layered variant rows (one row per unique variant group, with width dropdown)
-                                                            if (!Array.isArray(variantGroups)) return null;
-                                                            const { active: cols, showCombinedSI } = getActiveColumns(variantGroups[0] || [], false);
+                                                            // Otherwise, compact mode: one table per product group, layered variant rows (width dropdown)
+                                                            if (!Array.isArray(groupedVariantRows)) return null;
+                                                            const { active: cols, showCombinedSI } = getActiveColumns(groupedVariantRows[0] || [], false);
+                                                            // Always include costPrice in compact mode
+                                                            const colsFinal = Array.from(new Set([...cols, 'costPrice']));
                                                             return (
                                                                 <div key={prodName} className="mb-3">
                                                                     <div className="font-semibold px-3 py-2 text-gray-700">{prodName}</div>
                                                                     <div className="overflow-x-auto rounded-lg">
                                                                         <table className="min-w-full divide-y divide-gray-200">
                                                                             <thead className="bg-gray-50">
-                                                                                {renderTableHeader(cols, showCombinedSI)}
+                                                                                {renderTableHeader(colsFinal, showCombinedSI, showDetails)}
                                                                             </thead>
                                                                             <tbody className="bg-white divide-y divide-gray-200">
-                                                                                {variantGroups.map((variants, rowIdx) => {
+                                                                                {groupedVariantRows.map((variants, rowIdx) => {
                                                                                     const groupKey = `${category}|${brand}|${supplier}|${prodName}|${rowIdx}`;
                                                                                     const selectedIdx = selectedWidthIdxByRow[groupKey] ?? 0;
                                                                                     return (
                                                                                         <MaterialVariantRow
                                                                                             key={groupKey}
                                                                                             variants={variants}
-                                                                                            cols={cols}
+                                                                                            cols={colsFinal}
                                                                                             showCombinedSI={showCombinedSI}
+                                                                                            showDetails={showDetails}
                                                                                             onEdit={onEdit}
                                                                                             onDelete={onDelete}
                                                                                             groupKey={groupKey}
