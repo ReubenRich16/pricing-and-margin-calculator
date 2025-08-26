@@ -1,4 +1,3 @@
-// src/utils/materialsGrouping.js
 import {
   categoryOrder,
   brandOrder,
@@ -7,27 +6,17 @@ import {
   consumablesGroupRule
 } from '../config/sortConfig';
 
-// --- Helper: get strictly ordered, non-empty columns for product group ---
+// Helper: get strictly ordered, non-empty columns for product group
 export function getActiveColumns(items, showDetails) {
     if (!Array.isArray(items)) items = [];
 
     let orderedKeys = materialColumns.map(col => col.key);
 
-    // Remove 'notes', 'keywords', 'coverageUnit', and 'unitOfMeasure' ALWAYS
-    orderedKeys = orderedKeys.filter(
-        key =>
-            key !== 'notes' &&
-            key !== 'keywords' &&
-            key !== 'coverageUnit' &&
-            key !== 'unitOfMeasure'
-    );
-
-    // Remove 'length' unless details are ON
+    orderedKeys = orderedKeys.filter(key => key !== 'notes' && key !== 'keywords');
     if (!showDetails) {
         orderedKeys = orderedKeys.filter(key => key !== 'length');
     }
 
-    // --- NEW: Retro S+I columns only when showDetails and at least one value ---
     const extraDetailColumns = [
         'retrofit_ceiling_rate',
         'subfloor_rate',
@@ -37,7 +26,6 @@ export function getActiveColumns(items, showDetails) {
         orderedKeys = orderedKeys.filter(key => !extraDetailColumns.includes(key));
     }
 
-    // Only include columns that have at least one non-empty value in group
     let active = orderedKeys.filter(key =>
         items.some(i =>
             i[key] !== undefined &&
@@ -46,7 +34,6 @@ export function getActiveColumns(items, showDetails) {
         )
     );
 
-    // When showDetails, ensure extraDetailColumns are included if any value in group
     if (showDetails) {
         extraDetailColumns.forEach(col => {
             const hasValue = items.some(i =>
@@ -79,7 +66,7 @@ export function getActiveColumns(items, showDetails) {
     return { active, showCombinedSI };
 }
 
-// --- Helper: convert R-value to number reliably ---
+// Helper: convert R-value to number reliably
 function parseRValue(val) {
     if (val == null) return NaN;
     let str = String(val).trim().toUpperCase();
@@ -88,43 +75,42 @@ function parseRValue(val) {
     return isNaN(num) ? 0 : num;
 }
 
-// --- Sorting helper ---
+// Sorting helper
 export function sortProducts(products = []) {
     return [...products].sort((a, b) => {
-        // Always sort by numeric R-value descending
+        // R-value descending
         const rA = parseRValue(a.rValue);
         const rB = parseRValue(b.rValue);
         if (rA !== rB) return rB - rA;
 
-        // Then by thickness descending
+        // Thickness descending
         const thicknessA = parseFloat(a.thickness) || 0;
         const thicknessB = parseFloat(b.thickness) || 0;
         if (thicknessA !== thicknessB) return thicknessB - thicknessA;
 
-        // Then by width descending
+        // Width descending
         const widthA = parseFloat(a.width) || 0;
         const widthB = parseFloat(b.width) || 0;
         if (widthA !== widthB) return widthB - widthA;
 
-        // Then by density descending
+        // Density descending
         const densityA = parseFloat(a.density) || 0;
         const densityB = parseFloat(b.density) || 0;
         if (densityA !== densityB) return densityB - densityA;
 
-        // If both product names are in productNameSortOrder, sort by that order
+        // Product name sort order
         const idxA = productNameSortOrder.indexOf(a.materialName);
         const idxB = productNameSortOrder.indexOf(b.materialName);
         if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
 
-        // Finally, sort by materialName
+        // Finally, by materialName
         return (a.materialName || '').localeCompare(b.materialName || '');
     });
 }
 
-// --- Grouping logic ---
-// Standard: category > brand > supplier > productName
-// Consumables: category > supplier > productName
-export function groupMaterials(filteredMaterials) {
+// --- Main grouping logic ---
+// Standard: category > brand > supplier > productName > variants (grouped by all except width)
+export function groupMaterials(filteredMaterials, showDetails = false) {
     // 1. Group by category
     const cats = {};
     filteredMaterials.forEach(mat => {
@@ -165,7 +151,7 @@ export function groupMaterials(filteredMaterials) {
                 });
             });
         } else {
-            // --- Standard: category > brand > supplier > productName ---
+            // Standard: category > brand > supplier > productName
             const brandGroups = {};
             products.forEach(mat => {
                 const brand = mat.brand || 'Unbranded';
@@ -191,7 +177,33 @@ export function groupMaterials(filteredMaterials) {
                     const prodNames = [...prodOrder, ...prodExtra.sort()];
                     result[cat][brand][supplier] = {};
                     prodNames.forEach(prodName => {
-                        result[cat][brand][supplier][prodName] = sortProducts(prodNameGroups[prodName]);
+                        const items = sortProducts(prodNameGroups[prodName]);
+
+                        // --- Layer: group variants by all except width ---
+                        if (!showDetails) {
+                            // Group variants by [rValue, thickness, density, s_i_timber, s_i_steel, brand, supplier, category]
+                            const variantGroups = {};
+                            items.forEach(item => {
+                                const key = [
+                                    item.rValue || "",
+                                    item.thickness || "",
+                                    item.density || "",
+                                    item.s_i_timber || "",
+                                    item.s_i_steel || "",
+                                    item.brand || "",
+                                    item.supplier || "",
+                                    item.category || "",
+                                    // product name intentionally excluded!
+                                ].join('|');
+                                if (!variantGroups[key]) variantGroups[key] = [];
+                                variantGroups[key].push(item);
+                            });
+                            // For each group, keep variants (different widths)
+                            result[cat][brand][supplier][prodName] = Object.values(variantGroups).map(variants => variants);
+                        } else {
+                            // Show all variants as rows
+                            result[cat][brand][supplier][prodName] = items;
+                        }
                     });
                 });
             });
