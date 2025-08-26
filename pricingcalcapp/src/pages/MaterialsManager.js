@@ -1,6 +1,6 @@
 // src/pages/MaterialsManager.js
 import React, { useState, useMemo } from 'react';
-import { PlusCircle, Upload } from 'lucide-react';
+import { PlusCircle, Upload, Trash } from 'lucide-react';
 import { useMaterials } from '../contexts/MaterialsContext';
 import FilterBar from '../components/common/FilterBar';
 import ConfirmationModal from '../components/common/ConfirmationModal';
@@ -9,13 +9,13 @@ import MaterialsTable from '../components/materials/MaterialsTable';
 import CSVImporter from '../components/common/CSVImporter';
 import { filterBySearchTerm } from '../utils/filter';
 import { groupMaterials } from '../utils/materialsGrouping';
-import { getMaterialsCollection } from '../firebase'; // <-- FIX: Import this
+import { getMaterialsCollection, deleteEntireCollection } from '../firebase'; // <-- Added import
 
 const baseFilterConfig = [
   { key: 'search', type: 'text', placeholder: 'Search name, category, supplier, brand...' },
 ];
 
-// --- Material CSV Field Mappings (UPDATED) ---
+// --- Material CSV Field Mappings (see previous versions for full details) ---
 const materialFieldMappings = {
     'Supplier': { name: 'supplier' },
     'Brand Name': { name: 'brand' },
@@ -56,8 +56,10 @@ const MaterialsManager = () => {
 
   const [deleteState, setDeleteState] = useState({ open: false, material: null });
 
-  // --- CSV Import Modal ---
   const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // --- NEW: Delete Database Modal ---
+  const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
 
   // Build dropdown options from current data
   const categoryOptions = useMemo(
@@ -126,6 +128,17 @@ const MaterialsManager = () => {
     setDeleteState({ open: false, material: null });
   };
 
+  // --- NEW: Delete Database Handler ---
+  const handleDeleteDatabase = async () => {
+      try {
+          await deleteEntireCollection('materials');
+          alert('Materials database has been successfully cleared.');
+      } catch (err) {
+          alert('An error occurred while deleting the database.');
+      }
+      setIsDeleteDbConfirmOpen(false);
+  };
+
   if (loading) return <div className="p-6">Loading materials...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
@@ -145,6 +158,7 @@ const MaterialsManager = () => {
               onClick={() => setIsImportOpen(true)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"
             >
+              {/* You can use your existing Upload icon here */}
               <Upload size={20} /> Import CSV
             </button>
             <button
@@ -152,6 +166,12 @@ const MaterialsManager = () => {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusCircle size={20} /> Add New
+            </button>
+            <button
+              onClick={() => setIsDeleteDbConfirmOpen(true)}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700 flex items-center gap-2"
+            >
+              <Trash size={20} /> Delete Database
             </button>
           </div>
         </div>
@@ -204,9 +224,20 @@ const MaterialsManager = () => {
       {isImportOpen && (
         <CSVImporter
           isOpen={isImportOpen}
-          collectionRef={getMaterialsCollection()} // <-- FIX: Pass real collection reference
+          collectionRef={getMaterialsCollection()}
           fieldMappings={materialFieldMappings}
           onComplete={() => setIsImportOpen(false)}
+        />
+      )}
+
+      {isDeleteDbConfirmOpen && (
+        <ConfirmationModal
+          isOpen={isDeleteDbConfirmOpen}
+          title="Delete Entire Materials Database"
+          message="Are you absolutely sure? This will permanently delete all materials and cannot be undone."
+          onConfirm={handleDeleteDatabase}
+          onClose={() => setIsDeleteDbConfirmOpen(false)}
+          confirmText="Delete"
         />
       )}
     </div>

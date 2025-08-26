@@ -27,20 +27,32 @@ export const getMaterialsCollection    = () => getCollectionRef('materials');
 export const getLabourRatesCollection  = () => getCollectionRef('labourRates');
 export const getCustomersCollection    = () => getCollectionRef('customers');
 
+// --- Improved batch deletion for collections > 500 docs ---
 export const deleteEntireCollection = async (collectionName) => {
     const collectionRef = getCollectionRef(collectionName);
     if (!collectionRef) {
         console.error("User not authenticated, cannot delete collection.");
         return;
     }
+    let totalDeleted = 0;
     try {
-        const querySnapshot = await getDocs(collectionRef);
-        const batch = writeBatch(db);
-        querySnapshot.forEach((docSnapshot) => {
-            batch.delete(doc(collectionRef, docSnapshot.id));
-        });
-        await batch.commit();
-        console.log(`Successfully deleted all documents from ${collectionName}.`);
+        while (true) {
+            const querySnapshot = await getDocs(collectionRef);
+            if (querySnapshot.empty) break;
+            const batch = writeBatch(db);
+            let ops = 0;
+            querySnapshot.forEach((docSnapshot) => {
+                if (ops < 500) {
+                    batch.delete(doc(collectionRef, docSnapshot.id));
+                    ops++;
+                }
+            });
+            if (ops === 0) break;
+            await batch.commit();
+            totalDeleted += ops;
+            if (ops < 500) break; // No more docs to delete
+        }
+        console.log(`Successfully deleted ${totalDeleted} documents from ${collectionName}.`);
     } catch (error) {
         console.error(`Error deleting collection ${collectionName}:`, error);
         throw error;
