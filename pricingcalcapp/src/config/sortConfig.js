@@ -49,14 +49,14 @@ export const materialColumns = [
   { key: 'thickness', label: 'Thickness (mm)', suffix: 'mm' },
   { key: 'length', label: 'Length (mm)', suffix: 'mm' },
   { key: 'width', label: 'Width (mm)', suffix: 'mm' },
-  { key: 'coverage', label: 'Coverage/Unit' },
-  { key: 'coverageUnit', label: 'Coverage Unit' },
-  { key: 'unit', label: 'Unit' },
+  { key: 'coverage', label: 'Coverage' }, // Coverage amount
+  { key: 'coverageUnit', label: 'Coverage Unit' }, // e.g. m², LM
+  { key: 'unitOfMeasure', label: 'Sale Unit' }, // e.g. bag, panel, roll (from "Unit" col in CSV)
   { key: 'density', label: 'Density (kg/m³)', suffix: 'kg/m³' },
   { key: 'costPrice', label: 'Cost/Unit', prefix: '$' },
   { key: 'sCostUnit', label: 'S Cost/Unit', prefix: '$' },
-  { key: 's_i_timber', label: 'S+I Timber/Coverage Unit', prefix: '$' }, // UPDATED
-  { key: 's_i_steel', label: 'S+I Steel/Coverage Unit', prefix: '$' },   // UPDATED
+  { key: 's_i_timber', label: 'S+I Timber/Coverage Unit', prefix: '$' },
+  { key: 's_i_steel', label: 'S+I Steel/Coverage Unit', prefix: '$' },
   { key: 'retrofit_ceiling_rate', label: 'Retrofit (existing ceiling) S+I/Coverage Unit', prefix: '$' },
   { key: 'subfloor_rate', label: 'Subfloor S+I/Coverage Unit', prefix: '$' },
   { key: 'retrofit_subfloor_rate', label: 'Retrofit (Subfloor) S+I/Coverage Unit', prefix: '$' },

@@ -12,6 +12,7 @@ const customColumnLabels = {
     retrofit_ceiling_rate: 'Retrofit Ceiling S+I',
     subfloor_rate: 'Subfloor S+I',
     retrofit_subfloor_rate: 'Retrofit Subfloor S+I',
+    unitOfMeasure: 'Sale Unit'
 };
 
 // Helper for table header rendering
@@ -34,6 +35,8 @@ const renderTableHeader = (cols, showCombinedSI, items) => (
                 return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S+I Steel</th>;
             if (colKey === 'length')      return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Length</th>;
             if (colKey === 'keywords')    return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Keywords</th>;
+            if (colKey === 'coverageUnit')return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Coverage Unit</th>;
+            if (colKey === 'unitOfMeasure')return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Sale Unit</th>;
             return null;
         })}
         <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
@@ -44,7 +47,7 @@ const renderTableHeader = (cols, showCombinedSI, items) => (
 const renderTableRow = (m, cols, showCombinedSI, onEdit, onDelete) => (
     <tr key={m.id}>
         {cols.map(colKey => {
-            const saleUnit = m.unit || m.unitOfMeasure || '';
+            const saleUnit = m.unitOfMeasure || '';
             const covUnit = m.coverageUnit || '';
             if (colKey === 'retrofit_ceiling_rate')
                 return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
@@ -57,6 +60,7 @@ const renderTableRow = (m, cols, showCombinedSI, onEdit, onDelete) => (
             if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
             if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
             if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;
+            // --- Coverage cell: coverage amount, then coverage unit, then sale unit as suffix ---
             if (colKey === 'coverage')    return <td key={colKey} className="p-3 text-sm">{m.coverage ? `${m.coverage} ${covUnit}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
             if (colKey === 'costPrice')   return <td key={colKey} className="p-3 text-sm text-red-600 font-medium">{m.costPrice ? `$${Number(m.costPrice).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
             if (colKey === 'sCostUnit')   return <td key={colKey} className="p-3 text-sm font-semibold">{m.sCostUnit ? `$${Number(m.sCostUnit).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
@@ -67,6 +71,8 @@ const renderTableRow = (m, cols, showCombinedSI, onEdit, onDelete) => (
                 return <td key={colKey} className="p-3 text-sm">{m.s_i_steel ? `$${Number(m.s_i_steel).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
             if (colKey === 'length')      return <td key={colKey} className="p-3 text-sm">{m.length ? `${m.length}mm` : ''}</td>;
             if (colKey === 'keywords')    return <td key={colKey} className="p-3 text-sm">{Array.isArray(m.keywords) ? m.keywords.join(', ') : m.keywords || ''}</td>;
+            if (colKey === 'unitOfMeasure') return <td key={colKey} className="p-3 text-sm">{saleUnit}</td>;
+            if (colKey === 'coverageUnit') return <td key={colKey} className="p-3 text-sm">{covUnit}</td>;
             return null;
         })}
         <td className="p-3 text-center">
