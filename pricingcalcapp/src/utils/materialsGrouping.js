@@ -73,30 +73,44 @@ export function getActiveColumns(items, showDetails) {
     return { active, showCombinedSI };
 }
 
+// --- Helper: convert R-value to number reliably ---
+function parseRValue(val) {
+    if (val == null) return NaN;
+    let str = String(val).trim().toUpperCase();
+    if (str.startsWith('R')) str = str.replace(/^R+/i, '');
+    const num = parseFloat(str);
+    return isNaN(num) ? 0 : num;
+}
+
 // --- Sorting helper ---
 export function sortProducts(products = []) {
     return [...products].sort((a, b) => {
-        const idxA = productNameSortOrder.indexOf(a.materialName);
-        const idxB = productNameSortOrder.indexOf(b.materialName);
-        if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
-
-        // Fallbacks
-        const rA = parseFloat(a.rValue) || 0;
-        const rB = parseFloat(b.rValue) || 0;
+        // Always sort by numeric R-value descending
+        const rA = parseRValue(a.rValue);
+        const rB = parseRValue(b.rValue);
         if (rA !== rB) return rB - rA;
 
+        // Then by thickness descending
         const thicknessA = parseFloat(a.thickness) || 0;
         const thicknessB = parseFloat(b.thickness) || 0;
         if (thicknessA !== thicknessB) return thicknessB - thicknessA;
 
-        const densityA = parseFloat(a.density) || 0;
-        const densityB = parseFloat(b.density) || 0;
-        if (densityA !== densityB) return densityB - densityA;
-
+        // Then by width descending
         const widthA = parseFloat(a.width) || 0;
         const widthB = parseFloat(b.width) || 0;
         if (widthA !== widthB) return widthB - widthA;
 
+        // Then by density descending
+        const densityA = parseFloat(a.density) || 0;
+        const densityB = parseFloat(b.density) || 0;
+        if (densityA !== densityB) return densityB - densityA;
+
+        // If both product names are in productNameSortOrder, sort by that order
+        const idxA = productNameSortOrder.indexOf(a.materialName);
+        const idxB = productNameSortOrder.indexOf(b.materialName);
+        if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
+
+        // Finally, sort by materialName
         return (a.materialName || '').localeCompare(b.materialName || '');
     });
 }

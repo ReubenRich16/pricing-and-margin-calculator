@@ -9,13 +9,13 @@ import MaterialsTable from '../components/materials/MaterialsTable';
 import CSVImporter from '../components/common/CSVImporter';
 import { filterBySearchTerm } from '../utils/filter';
 import { groupMaterials } from '../utils/materialsGrouping';
-import { getMaterialsCollection, deleteEntireCollection } from '../firebase'; // <-- Added import
+import { getMaterialsCollection, deleteEntireCollection } from '../firebase';
 
 const baseFilterConfig = [
   { key: 'search', type: 'text', placeholder: 'Search name, category, supplier, brand...' },
 ];
 
-// --- Material CSV Field Mappings (see previous versions for full details) ---
+// --- Material CSV Field Mappings ---
 const materialFieldMappings = {
     'Supplier': { name: 'supplier' },
     'Brand Name': { name: 'brand' },
@@ -27,7 +27,7 @@ const materialFieldMappings = {
     'Width (mm)': { name: 'width', type: 'number' },
     'Coverage/Unit': { name: 'coverage', type: 'number' },
     'Coverage Unit': { name: 'coverageUnit' },
-    'Unit': { name: 'unit' },
+    'Unit': { name: 'unitOfMeasure' }, // Standardized
     'Density (kg/m³)': { name: 'density', type: 'number' },
     'Cost/Unit': { name: 'costPrice', type: 'number' },
     'S Cost/Unit': { name: 'sCostUnit', type: 'number' },
@@ -57,8 +57,6 @@ const MaterialsManager = () => {
   const [deleteState, setDeleteState] = useState({ open: false, material: null });
 
   const [isImportOpen, setIsImportOpen] = useState(false);
-
-  // --- NEW: Delete Database Modal ---
   const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
 
   // Build dropdown options from current data
@@ -128,7 +126,6 @@ const MaterialsManager = () => {
     setDeleteState({ open: false, material: null });
   };
 
-  // --- NEW: Delete Database Handler ---
   const handleDeleteDatabase = async () => {
       try {
           await deleteEntireCollection('materials');
@@ -158,7 +155,6 @@ const MaterialsManager = () => {
               onClick={() => setIsImportOpen(true)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"
             >
-              {/* You can use your existing Upload icon here */}
               <Upload size={20} /> Import CSV
             </button>
             <button
