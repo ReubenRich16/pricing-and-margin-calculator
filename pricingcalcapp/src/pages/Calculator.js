@@ -11,6 +11,7 @@ import XeroSummaryModal from '../components/quote/XeroSummaryModal';
 import QuoteSummary from '../components/quote/QuoteSummary';
 import { calculateTotals } from '../utils/calculateTotals';
 import CustomerSelectionModal from '../components/customers/CustomerSelectionModal';
+import formatRValue from '../utils/formatRValue';
 
 const Calculator = ({ worksheet, onBack }) => {
     const { materials, loading: materialsLoading } = useMaterials();
@@ -24,7 +25,6 @@ const Calculator = ({ worksheet, onBack }) => {
     const [worksheetsCollectionRef, setWorksheetsCollectionRef] = useState(null);
     const [isXeroModalOpen, setIsXeroModalOpen] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-    const [errorsByGroup, setErrorsByGroup] = useState({});
 
     useEffect(() => {
         setWorksheetsCollectionRef(getWorksheetsCollection());
@@ -41,22 +41,6 @@ const Calculator = ({ worksheet, onBack }) => {
         }
     }, [worksheet]);
 
-    useEffect(() => {
-        const errorsByGroupTemp = {};
-        (worksheetData.groups || []).forEach((group, gIdx) => {
-            if (!group.lineItems) return;
-            errorsByGroupTemp[gIdx] = {};
-            group.lineItems.forEach((item, lIdx) => {
-                const errors = {};
-                if (!item.materialId) errors.materialId = 'Please select a material.';
-                if (!item.quantity || isNaN(item.quantity) || item.quantity <= 0)
-                    errors.quantity = 'Quantity must be greater than zero.';
-                errorsByGroupTemp[gIdx][lIdx] = errors;
-            });
-        });
-        setErrorsByGroup(errorsByGroupTemp);
-    }, [worksheetData]);
-
     const selectedCustomer = useMemo(() =>
         customers.find(c => c.id === worksheetData.customerId),
         [customers, worksheetData.customerId]
@@ -66,6 +50,25 @@ const Calculator = ({ worksheet, onBack }) => {
         calculateTotals(worksheetData, materials, labourRates, selectedCustomer),
         [worksheetData, materials, labourRates, selectedCustomer]
     );
+
+    // --- Shortlist options for material dropdown (top-level hook) ---
+    const shortlistOptions = useMemo(() => {
+        return materials
+            .slice()
+            .sort((a, b) => (a.materialName || '').localeCompare(b.materialName || ''))
+            .map(mat => ({
+                value: mat.id,
+                label: [
+                  mat.materialName,
+                  mat.brand ? `(${mat.brand})` : "",
+                  formatRValue(mat.rValue),
+                  mat.thickness ? `${mat.thickness}mm` : "",
+                  mat.width ? `${mat.width}mm` : "",
+                  mat.length ? `${mat.length}mm` : "",
+                  mat.category ? `[${mat.category}]` : "",
+                ].filter(Boolean).join(" ")
+            }));
+    }, [materials]);
 
     const handleInputChange = (e) => {
         const { name, value, type } = e.target;
@@ -86,6 +89,7 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
+    // -- Quote Group Management --
     const addGroup = () => {
         setWorksheetData(prev => ({
             ...prev,
@@ -105,19 +109,13 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
-    const handleGroupChange = (groupIndex, groupData) => {
-        setWorksheetData(prev => ({
-            ...prev,
-            groups: prev.groups.map((group, idx) => idx === groupIndex ? { ...group, ...groupData } : group)
-        }));
-    };
-
+    // -- Material Line Item Management --
     const addLineItem = (groupIndex) => {
         setWorksheetData(prev => ({
             ...prev,
             groups: prev.groups.map((group, idx) =>
                 idx === groupIndex
-                    ? { ...group, lineItems: [...(group.lineItems || []), { materialId: '', materialName: '', quantity: 1 }] }
+                    ? { ...group, lineItems: [...(group.lineItems || []), { materialId: '', materialName: '', quantity: 1, unit: '', notes: '' }] }
                     : group
             )
         }));
@@ -150,15 +148,14 @@ const Calculator = ({ worksheet, onBack }) => {
         }));
     };
 
+    // -- Paste Parser Integration --
     const handleParsedGroups = (parsedGroups) => {
         setWorksheetData(prev => ({
             ...prev,
             groups: parsedGroups.map(group => ({
                 groupId: Date.now().toString() + Math.random().toString(36).slice(2, 7),
                 groupName: group.groupName,
-                lineItems: group.subgroups
-                    ? group.subgroups.flatMap(sg => sg.lineItems || [])
-                    : group.lineItems || [],
+                lineItems: group.lineItems || [],
                 labourItems: []
             }))
         }));
@@ -166,23 +163,9 @@ const Calculator = ({ worksheet, onBack }) => {
 
     const handleSave = async () => {
         if (!worksheetsCollectionRef) return;
-        let hasErrors = false;
-        Object.values(errorsByGroup).forEach(groupErrors => {
-            Object.values(groupErrors).forEach(lineErrors => {
-                if (lineErrors.materialId || lineErrors.quantity) {
-                    hasErrors = true;
-                }
-            });
-        });
-        if (hasErrors) {
-            alert('Please fix all material and quantity errors before saving.');
-            return;
-        }
         const dataToSave = {
             ...worksheetData,
             summary: calculations,
-            customerId: worksheetData.customerId,
-            customerName: worksheetData.customerName,
             updatedAt: serverTimestamp(),
         };
         if (worksheetData.id) {
@@ -195,66 +178,7 @@ const Calculator = ({ worksheet, onBack }) => {
         onBack();
     };
 
-    const WorksheetGroup = ({
-        group, groupIndex, onGroupChange, onRemoveGroup,
-        onAddLineItem, onRemoveLineItem, onLineItemChange,
-        materials, errorsByLine
-    }) => (
-        <div className="border rounded-md p-4 mb-4 bg-gray-50">
-            <div className="flex justify-between items-center mb-2">
-                <input
-                    type="text"
-                    value={group.groupName}
-                    onChange={e => onGroupChange(groupIndex, { groupName: e.target.value })}
-                    className="text-lg font-semibold border-b w-2/3 bg-transparent"
-                    placeholder="Group Name / Section"
-                />
-                <button onClick={() => onRemoveGroup(groupIndex)} className="text-red-600 hover:text-red-800 ml-4">
-                    <Trash2 size={18} />
-                </button>
-            </div>
-            <div className="space-y-3">
-                {(group.lineItems || []).map((item, lineIndex) => (
-                    <div key={lineIndex} className="flex items-center space-x-2">
-                        <select
-                            value={item.materialId}
-                            onChange={e => {
-                                const selectedMat = materials.find(m => m.id === e.target.value);
-                                onLineItemChange(groupIndex, lineIndex, {
-                                    materialId: e.target.value,
-                                    materialName: selectedMat ? selectedMat.materialName : ''
-                                });
-                            }}
-                            className={`w-1/3 p-2 border rounded-md bg-white ${errorsByLine[lineIndex]?.materialId ? 'border-red-500' : ''}`}
-                        >
-                            <option value="">Select Material</option>
-                            {materials.map(mat => (
-                                <option key={mat.id} value={mat.id}>{mat.materialName}</option>
-                            ))}
-                        </select>
-                        <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={e => onLineItemChange(groupIndex, lineIndex, { quantity: parseFloat(e.target.value) || 1 })}
-                            className={`w-20 p-2 border rounded-md ${errorsByLine[lineIndex]?.quantity ? 'border-red-500' : ''}`}
-                            placeholder="Qty"
-                        />
-                        <span className="text-gray-500">
-                            {materials.find(m => m.id === item.materialId)?.unitOfMeasure || 'unit'}
-                        </span>
-                        <button onClick={() => onRemoveLineItem(groupIndex, lineIndex)} className="text-red-600 hover:text-red-800 ml-2">
-                            <Trash2 size={18} />
-                        </button>
-                    </div>
-                ))}
-                <button onClick={() => onAddLineItem(groupIndex)} className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium">
-                    <Plus size={16} className="mr-1" />Add Material Line
-                </button>
-            </div>
-        </div>
-    );
-
+    // --- Loading early return (after all hooks) ---
     if (materialsLoading || labourLoading || customersLoading) {
         return <div className="text-center p-8 text-gray-500">Loading Core Data...</div>;
     }
@@ -267,12 +191,7 @@ const Calculator = ({ worksheet, onBack }) => {
                         <h2 className="text-2xl font-bold text-gray-800">{worksheet?.id ? 'Edit Worksheet' : 'New Quote Worksheet'}</h2>
                         <button onClick={onBack} className="text-sm text-gray-600 hover:text-gray-900">Back to Dashboard</button>
                     </div>
-                    <PasteParser
-                        materials={materials}
-                        labourRates={labourRates}
-                        onParse={handleParsedGroups}
-                        brand=""
-                    />
+                    
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-gray-200 pb-6">
                         <div>
                             <label htmlFor="worksheetName" className="block text-sm font-medium text-gray-700">Worksheet Name / Address</label>
@@ -286,50 +205,83 @@ const Calculator = ({ worksheet, onBack }) => {
                                     name="customerName"
                                     id="customerName"
                                     value={worksheetData.customerName}
-                                    onChange={handleInputChange}
-                                    className="flex-grow px-3 py-2 bg-white border border-r-0 border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="e.g., John Smith"
-                                    readOnly={!!worksheetData.customerId}
+                                    className="flex-grow px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md shadow-sm sm:text-sm"
+                                    placeholder="Select a customer"
+                                    readOnly
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setIsCustomerModalOpen(true)}
-                                    className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-r-md bg-gray-50 text-gray-500 sm:text-sm"
+                                    className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-r-md bg-gray-50 text-gray-500 sm:text-sm hover:bg-gray-100"
                                 >
                                     <Users size={16} className="mr-1" />
                                     {worksheetData.customerId ? 'Change' : 'Select'}
                                 </button>
                             </div>
-                            {selectedCustomer?.customPricing && (
-                                <p className="mt-1 text-xs text-green-600">
-                                    Using custom pricing rules for this customer
-                                </p>
-                            )}
                         </div>
                         <div>
                             <label htmlFor="marginPercentage" className="block text-sm font-medium text-gray-700">Target Margin (%)</label>
                             <input type="number" name="marginPercentage" id="marginPercentage" value={worksheetData.marginPercentage} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
                     </div>
+                    
                     <div className="space-y-4">
                         {(worksheetData.groups || []).map((group, index) => (
-                            <WorksheetGroup
-                                key={group.groupId || index}
-                                group={group}
-                                groupIndex={index}
-                                onGroupChange={handleGroupChange}
-                                onRemoveGroup={removeGroup}
-                                onAddLineItem={addLineItem}
-                                onRemoveLineItem={removeLineItem}
-                                onLineItemChange={handleLineItemChange}
-                                materials={materials}
-                                errorsByLine={errorsByGroup[index] || {}}
-                            />
+                           <div key={group.groupId || index} className="border rounded-md p-4 bg-gray-50">
+                                <div className="flex justify-between items-center mb-2">
+                                    <input
+                                        type="text"
+                                        value={group.groupName}
+                                        onChange={e => setWorksheetData(prev => ({
+                                            ...prev,
+                                            groups: prev.groups.map((g, idx) =>
+                                                idx === index ? { ...g, groupName: e.target.value } : g
+                                            )
+                                        }))}
+                                        className="text-lg font-semibold border-b w-2/3 bg-transparent focus:outline-none focus:border-blue-500"
+                                        placeholder="Group Name / Section"
+                                    />
+                                    <button onClick={() => removeGroup(index)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                </div>
+                                {(group.lineItems || []).map((item, lineIndex) => (
+                                    <div key={lineIndex} className="flex items-center space-x-2 p-2">
+                                        <select
+                                            value={item.materialId}
+                                            onChange={e => {
+                                                const selectedMat = materials.find(m => m.id === e.target.value);
+                                                handleLineItemChange(index, lineIndex, { materialId: e.target.value, materialName: selectedMat?.materialName || '' });
+                                            }}
+                                            className="w-1/2 p-2 border rounded-md bg-white">
+                                            <option value="">Select Material</option>
+                                            {shortlistOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                        </select>
+                                        <input
+                                            type="number"
+                                            min={0.01}
+                                            step={0.01}
+                                            value={item.quantity}
+                                            onChange={e => handleLineItemChange(index, lineIndex, { quantity: parseFloat(e.target.value) || 0 })}
+                                            className="w-24 p-2 border rounded-md"
+                                            placeholder="Qty"
+                                            required
+                                        />
+                                        <button onClick={() => removeLineItem(index, lineIndex)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                                    </div>
+                                ))}
+                                <button onClick={() => addLineItem(index)} className="text-sm text-blue-600 hover:text-blue-800 mt-2"><Plus size={16} className="inline mr-1"/>Add Material</button>
+                            </div>
                         ))}
                     </div>
+
                     <button onClick={addGroup} className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium pt-2">
                         <Plus size={16} className="mr-1" />Add Quote Group
                     </button>
+                    <PasteParser
+                        materials={materials}
+                        labourRates={labourRates}
+                        onParse={handleParsedGroups}
+                        brand=""
+                    />
                 </div>
                 <div className="lg:col-span-1 lg:sticky top-24 bg-white p-6 rounded-lg shadow-md space-y-4">
                     <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Live Calculations</h3>

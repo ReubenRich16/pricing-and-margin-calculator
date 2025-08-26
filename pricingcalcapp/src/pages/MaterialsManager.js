@@ -1,49 +1,18 @@
-// src/pages/MaterialsManager.js
 import React, { useState, useMemo } from 'react';
 import { useMaterials } from '../contexts/MaterialsContext';
 import { getMaterialsCollection, deleteEntireCollection } from '../firebase';
-// The faulty import has been removed.
 import MaterialModal from '../components/materials/MaterialModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
 import FilterBar from '../components/common/FilterBar';
-import { PlusCircle, Edit, Trash2, ChevronDown, ChevronRight, Upload, Trash, Eye, EyeOff } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Upload, Trash, Eye, EyeOff } from 'lucide-react';
+import MaterialsTable from '../components/materials/MaterialsTable';
+import { groupMaterials } from '../utils/materialsGrouping';
+import { filterBySearchTerm } from '../utils/filter';
 
-// The configuration object is now correctly placed inside this file.
-const MATERIAL_DATABASE_CONFIG = {
-  categoryOrder: [
-    "Bulk Insulation", "Fire Protection", "Subfloor", "Wall Wrap",
-    "Acoustic Pipe Lagging", "Rigid Panels/Soffit", "Consumables",
-    "Specialty Insulation", "Labour Add Ons/Other",
-  ],
-  brandOrder: [
-    "Ecowool", "Earthwool", "Bradford", "Pink Batts", "Autex", "Kingspan", "Other",
-  ],
-  productNameSortOrder: {
-    Ecowool: [
-      "Thermal Ceiling & Floor Batt",
-      "Acoustic Floor & Wall Batt",
-    ],
-  },
-};
-
-const getVisibleColumns = (materials) => {
-    const columns = {
-        thickness: false, density: false, s_i_timber: false, s_i_steel: false,
-        length: false, width: false,
-    };
-    if (!materials || materials.length === 0) return columns;
-
-    for (const mat of materials) {
-        if (mat.thickness) columns.thickness = true;
-        if (mat.density) columns.density = true;
-        if (mat.s_i_timber) columns.s_i_timber = true;
-        if (mat.s_i_steel) columns.s_i_steel = true;
-        if (mat.length) columns.length = true;
-        if (mat.width) columns.width = true;
-    }
-    return columns;
-};
+const materialFilterConfig = [
+  { key: 'search', type: 'text', placeholder: 'Search all fields...' }
+];
 
 const MaterialsManager = () => {
     const { materials = [], loading, error, addMaterial, updateMaterial, deleteMaterial } = useMaterials();
@@ -53,74 +22,28 @@ const MaterialsManager = () => {
     const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
     const [currentMaterial, setCurrentMaterial] = useState(null);
     const [materialToDelete, setMaterialToDelete] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [collapsed, setCollapsed] = useState({});
+    const [filters, setFilters] = useState({ search: "" });
     const [showDetails, setShowDetails] = useState(false);
 
+    // Multi-level collapse state
+    const [collapsedCat, setCollapsedCat] = useState({});
+    const [collapsedBrand, setCollapsedBrand] = useState({});
+    const [collapsedSupplier, setCollapsedSupplier] = useState({});
+    const [collapsedProduct, setCollapsedProduct] = useState({});
+
+    // Use centralized filter utility
     const filteredMaterials = useMemo(() =>
-        materials.filter(m =>
-            Object.values(m).some(val => 
-                String(val).toLowerCase().includes(searchTerm.toLowerCase())
-            )
-        ),
-        [materials, searchTerm]
+        filterBySearchTerm(materials, filters.search),
+        [materials, filters.search]
     );
 
-    const { categoryOrder, brandOrder, productNameSortOrder } = MATERIAL_DATABASE_CONFIG;
+    // Multi-tier grouping
+    const groupedMaterials = useMemo(() => groupMaterials(filteredMaterials), [filteredMaterials]);
 
-    const groupedAndSortedMaterials = useMemo(() => {
-        const sortedMaterials = [...filteredMaterials].sort((a, b) => {
-            const catAIndex = categoryOrder.indexOf(a.category);
-            const catBIndex = categoryOrder.indexOf(b.category);
-            if (catAIndex !== catBIndex) {
-                return (catAIndex === -1 ? Infinity : catAIndex) - (catBIndex === -1 ? Infinity : catBIndex);
-            }
-
-            const brandAIndex = brandOrder.indexOf(a.brand);
-            const brandBIndex = brandOrder.indexOf(b.brand);
-            if (brandAIndex !== brandBIndex) {
-                return (brandAIndex === -1 ? Infinity : brandAIndex) - (brandBIndex === -1 ? Infinity : brandBIndex);
-            }
-
-            const customSort = productNameSortOrder[a.brand];
-            if (customSort) {
-                const indexA = customSort.indexOf(a.materialName);
-                const indexB = customSort.indexOf(b.materialName);
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            }
-            if (a.materialName?.includes('Acoustic Partition') && b.materialName?.includes('Acoustic Partition')) return (b.density || 0) - (a.density || 0);
-            if (a.category === 'Wall Wrap') return (b.coverage || 0) - (a.coverage || 0);
-            const rValueA = parseFloat(a.rValue) || 0;
-            const rValueB = parseFloat(b.rValue) || 0;
-            if (rValueA !== rValueB) return rValueB - rValueA;
-            if (a.thickness !== b.thickness) return (b.thickness || 0) - (a.thickness || 0);
-            if (a.category === 'Fire Protection') return (b.density || 0) - (a.density || 0);
-
-            return (a.materialName || '').localeCompare(b.materialName || '');
-        });
-
-        const grouped = sortedMaterials.reduce((acc, m) => {
-            const category = m.category || 'Uncategorized';
-            if (!acc[category]) {
-                acc[category] = { items: [] };
-            }
-            acc[category].items.push(m);
-            return acc;
-        }, {});
-        
-        for (const category in grouped) {
-            grouped[category].visibleColumns = getVisibleColumns(grouped[category].items);
-        }
-        
-        return grouped;
-    }, [filteredMaterials, categoryOrder, brandOrder, productNameSortOrder]);
-
+    // Modal handlers
     const handleSave = (data) => {
-        if (currentMaterial) {
-            updateMaterial(currentMaterial.id, data);
-        } else {
-            addMaterial(data);
-        }
+        if (currentMaterial) updateMaterial(currentMaterial.id, data);
+        else addMaterial(data);
         setIsModalOpen(false);
     };
 
@@ -133,9 +56,30 @@ const MaterialsManager = () => {
         }
         setIsDeleteDbConfirmOpen(false);
     };
-    
+
+    // CSV importer mapping
     const materialFieldMappings = {
-        'Product Name': { name: 'materialName', required: true, isMatchKey: true }, 'Supplier': { name: 'supplier' }, 'Brand Name': { name: 'brand' }, 'Application': { name: 'category' }, 'R-Value': { name: 'rValue' }, 'Thickness (mm)': { name: 'thickness', type: 'number' }, 'Length (mm)': { name: 'length', type: 'number' }, 'Width (mm)': { name: 'width', type: 'number' }, 'Coverage/Unit': { name: 'coverage', type: 'number' }, 'Coverage Unit': { name: 'coverageUnit' }, 'Unit': { name: 'unitOfMeasure' }, 'Density (kg/m³)': { name: 'density', type: 'number' }, 'Cost/Unit': { name: 'costPrice', type: 'number', required: true }, 'S Cost/Unit': { name: 'sCostUnit', type: 'number' }, 'S+I Timber': { name: 's_i_timber', type: 'number' }, 'S+I Steel': { name: 's_i_steel', type: 'number' }, 'Retrofit (existing ceiling) S+I/Coverage Unit': { name: 'retrofit_ceiling_rate', type: 'number' }, 'Subfloor S+I/Coverage Unit': { name: 'subfloor_rate', type: 'number' }, 'Retrofit (Subfloor) S+I/Coverage Unit': { name: 'retrofit_subfloor_rate', type: 'number' }, 'Notes': { name: 'notes' }, 'Keywords': { name: 'keywords', type: 'array' },
+        'Product Name': { name: 'materialName', required: true, isMatchKey: true },
+        'Supplier': { name: 'supplier' },
+        'Brand Name': { name: 'brand' },
+        'Application': { name: 'category' },
+        'R-Value': { name: 'rValue' },
+        'Thickness (mm)': { name: 'thickness', type: 'number' },
+        'Length (mm)': { name: 'length', type: 'number' },
+        'Width (mm)': { name: 'width', type: 'number' },
+        'Coverage/Unit': { name: 'coverage', type: 'number' },
+        'Coverage Unit': { name: 'coverageUnit' },
+        'Unit': { name: 'unitOfMeasure' },
+        'Density (kg/m³)': { name: 'density', type: 'number' },
+        'Cost/Unit': { name: 'costPrice', type: 'number', required: true },
+        'S Cost/Unit': { name: 'sCostUnit', type: 'number' },
+        'S+I Timber': { name: 's_i_timber', type: 'number' },
+        'S+I Steel': { name: 's_i_steel', type: 'number' },
+        'Retrofit (existing ceiling) S+I/Coverage Unit': { name: 'retrofit_ceiling_rate', type: 'number' },
+        'Subfloor S+I/Coverage Unit': { name: 'subfloor_rate', type: 'number' },
+        'Retrofit (Subfloor) S+I/Coverage Unit': { name: 'retrofit_subfloor_rate', type: 'number' },
+        'Notes': { name: 'notes' },
+        'Keywords': { name: 'keywords', type: 'array' },
     };
 
     if (loading) return <div className="p-4">Loading materials...</div>;
@@ -157,61 +101,26 @@ const MaterialsManager = () => {
                     </div>
                 </div>
                 
-                <FilterBar filter={searchTerm} setFilter={setSearchTerm} placeholder="Search all fields..." />
+                <FilterBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  filterConfig={materialFilterConfig}
+                />
 
-                <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                    {Object.keys(groupedAndSortedMaterials).map(category => {
-                        const { items, visibleColumns } = groupedAndSortedMaterials[category];
-                        return (
-                            <div key={category}>
-                                <button onClick={() => setCollapsed(p => ({...p, [category]: !p[category]}))} className="w-full flex justify-between items-center bg-gray-100 p-3 font-semibold text-left">
-                                    <span>{category} ({items.length})</span>
-                                    {collapsed[category] ? <ChevronRight size={20}/> : <ChevronDown size={20}/>}
-                                </button>
-                                {!collapsed[category] && (
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Product Name</th>
-                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Cost/Unit</th>
-                                                    <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S Cost/Unit</th>
-                                                    {visibleColumns.s_i_timber && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S+I Timber</th>}
-                                                    {visibleColumns.s_i_steel && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">S+I Steel</th>}
-                                                    {showDetails && visibleColumns.thickness && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Thickness</th>}
-                                                    {showDetails && visibleColumns.width && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Width</th>}
-                                                    {showDetails && visibleColumns.density && <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Density</th>}
-                                                    <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {items.map(m => (
-                                                    <tr key={m.id}>
-                                                        <td className="p-3 font-medium text-sm">
-                                                            {m.materialName}
-                                                            <span className="block text-xs text-gray-500">{m.brand} {m.rValue && `| ${m.rValue}`}</span>
-                                                        </td>
-                                                        <td className="p-3 text-sm text-red-600 font-medium">${(m.costPrice || 0).toFixed(2)}</td>
-                                                        <td className="p-3 text-sm font-semibold">${(m.sCostUnit || 0).toFixed(2)}</td>
-                                                        {visibleColumns.s_i_timber && <td className="p-3 text-sm">${(m.s_i_timber || 0).toFixed(2)}</td>}
-                                                        {visibleColumns.s_i_steel && <td className="p-3 text-sm">${(m.s_i_steel || 0).toFixed(2)}</td>}
-                                                        {showDetails && visibleColumns.thickness && <td className="p-3 text-sm">{m.thickness}mm</td>}
-                                                        {showDetails && visibleColumns.width && <td className="p-3 text-sm">{m.width}mm</td>}
-                                                        {showDetails && visibleColumns.density && <td className="p-3 text-sm">{m.density}</td>}
-                                                        <td className="p-3 text-center">
-                                                            <button onClick={() => { setCurrentMaterial(m); setIsModalOpen(true); }} className="text-blue-500 mr-2"><Edit size={18}/></button>
-                                                            <button onClick={() => { setMaterialToDelete(m); setIsConfirmOpen(true); }} className="text-red-500"><Trash2 size={18}/></button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                <MaterialsTable
+                    groupedMaterials={groupedMaterials}
+                    collapsedCat={collapsedCat}
+                    setCollapsedCat={setCollapsedCat}
+                    collapsedBrand={collapsedBrand}
+                    setCollapsedBrand={setCollapsedBrand}
+                    collapsedSupplier={collapsedSupplier}
+                    setCollapsedSupplier={setCollapsedSupplier}
+                    collapsedProduct={collapsedProduct}
+                    setCollapsedProduct={setCollapsedProduct}
+                    showDetails={showDetails}
+                    onEdit={m => { setCurrentMaterial(m); setIsModalOpen(true); }}
+                    onDelete={m => { setMaterialToDelete(m); setIsConfirmOpen(true); }}
+                />
             </div>
 
             {isModalOpen && <MaterialModal material={currentMaterial} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}

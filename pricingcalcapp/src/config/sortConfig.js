@@ -1,4 +1,4 @@
-// src/config/sortConfig
+// src/config/sortConfig.js
 
 // CATEGORY ORDER: Used for global grouping and sorting
 export const categoryOrder = [
@@ -13,7 +13,7 @@ export const brandOrder = [
   "James Hardie", "Rockwool", "Kingspan", "Metecno", "Foamex", "ISOMAX", "Other"
 ];
 
-// PRODUCT SORT ORDER: Global order for all products
+// PRODUCT SORT ORDER: Global order for all products (used for dropdowns and tables)
 export const productNameSortOrder = [
   "Thermal Ceiling & Floor Batt",
   "Thermal Wall Batt",
@@ -24,7 +24,7 @@ export const productNameSortOrder = [
   "Rockwool Slab",
   "Floor Block",
   "GreenLag",
-  "Thermotec", 
+  "Thermotec", // <-- FIX: Added missing comma here!
   "Brane VHP",
   "Brane Vapourtech",
   "Ametalin Quick Tape",
@@ -54,7 +54,7 @@ export const materialColumns = [
   { key: 'width', label: 'Width (mm)', suffix: 'mm' },
   { key: 'coverage', label: 'Coverage/Unit' },
   { key: 'coverageUnit', label: 'Coverage Unit' },
-  { key: 'unit', label: 'Unit' },
+  { key: 'unit', label: 'Unit' }, // <-- Use 'unit' everywhere, not unitOfMeasure
   { key: 'density', label: 'Density (kg/m³)', suffix: 'kg/m³' },
   { key: 'costPrice', label: 'Cost/Unit', prefix: '$' },
   { key: 'sCostUnit', label: 'S Cost/Unit', prefix: '$' },
@@ -71,5 +71,18 @@ export const materialColumns = [
 // For Consumables: category > Supplier > Product Name (no Brand grouping)
 export const consumablesGroupRule = {
   category: "Consumables",
-  groupBy: ["supplier", "materialName"]
+  groupBy: ["supplier", "materialName"] // Used for UI grouping in MaterialsManager
 };
+
+/*
+  Usage in src/pages/MaterialsManager.js:
+  - For standard categories: group by category > brand > productName
+  - For Consumables: group by category > supplier > productName
+
+  Example pseudocode:
+  if (category === consumablesGroupRule.category) {
+    groupBy = consumablesGroupRule.groupBy;
+  } else {
+    groupBy = ['brand', 'materialName'];
+  }
+*/

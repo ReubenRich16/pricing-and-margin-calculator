@@ -1,11 +1,9 @@
 // src/components/common/CSVImporter.js
-// Bug #4: Performance improvement – prefetch existing docs once instead of N queries.
-
 import React, { useState } from 'react';
 import { writeBatch, doc, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
+const CSVImporter = ({ isOpen, collectionRef, fieldMappings, onComplete }) => {
     const [file, setFile] = useState(null);
     const [step, setStep] = useState('upload'); // upload, mapping, preview
     const [headers, setHeaders] = useState([]);
@@ -13,6 +11,8 @@ const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
     const [preview, setPreview] = useState(null);
     const [error, setError] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+
+    if (!isOpen) return null;
 
     const parseCSVLine = (line) => {
         const result = [];
@@ -49,9 +49,11 @@ const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
                 setHeaders(parsedHeaders);
 
                 const defaultMapping = {};
-                Object.keys(fieldMappings).forEach(dbField => {
-                    const match = parsedHeaders.find(h => h.toLowerCase() === dbField.toLowerCase());
-                    defaultMapping[dbField] = match || '';
+                Object.keys(fieldMappings).forEach(csvHeader => {
+                    const match = parsedHeaders.find(h => h.toLowerCase() === csvHeader.toLowerCase());
+                    if (match) {
+                        defaultMapping[csvHeader] = match;
+                    }
                 });
                 setMapping(defaultMapping);
                 setStep('mapping');
@@ -62,8 +64,8 @@ const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
         reader.readAsText(f);
     };
 
-    const handleMappingChange = (dbField, csvHeader) => {
-        setMapping(prev => ({ ...prev, [dbField]: csvHeader }));
+    const handleMappingChange = (csvHeader, mappedHeader) => {
+        setMapping(prev => ({ ...prev, [csvHeader]: mappedHeader }));
     };
 
     const handlePreview = async () => {
@@ -78,89 +80,79 @@ const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
                 }
                 const dataRows = lines.slice(1).filter(l => l.trim());
 
-                const matchDbField = Object.keys(fieldMappings).find(f => fieldMappings[f].isMatchKey);
-                if (!matchDbField) {
+                let matchCsvHeader = null;
+                for (const key in fieldMappings) {
+                    if (fieldMappings[key].isMatchKey) {
+                        matchCsvHeader = key;
+                        break;
+                    }
+                }
+
+                if (!matchCsvHeader) {
                     setError('A field mapping must be marked isMatchKey: true.');
                     setIsProcessing(false);
                     return;
                 }
-                const matchCsvHeader = mapping[matchDbField];
-                if (!matchCsvHeader) {
-                    setError('Please map the match key field.');
-                    setIsProcessing(false);
-                    return;
-                }
 
-                // Prefetch existing documents (suitable for moderate collection sizes)
+                const matchDbField = fieldMappings[matchCsvHeader].name;
+
                 const existingSnapshot = await getDocs(collectionRef);
-                const matchFieldName = fieldMappings[matchDbField].name;
                 const existingMap = new Map();
                 existingSnapshot.forEach(d => {
                     const data = d.data();
-                    if (data && data[matchFieldName] !== undefined && data[matchFieldName] !== null) {
-                        existingMap.set(String(data[matchFieldName]).trim(), d.id);
+                    if (data && data[matchDbField] !== undefined && data[matchDbField] !== null) {
+                        existingMap.set(String(data[matchDbField]).trim(), d.id);
                     }
                 });
 
                 const toCreate = [];
                 const toUpdate = [];
                 const toSkip = [];
-                const errors = [];
 
                 for (const line of dataRows) {
                     const values = parseCSVLine(line);
                     if (values.length === 1 && values[0] === '') continue;
 
                     const rowData = {};
-                    Object.keys(fieldMappings).forEach(dbField => {
-                        const csvHeader = mapping[dbField];
-                        if (!csvHeader) return;
-                        const idx = headers.indexOf(csvHeader);
-                        let value = idx >= 0 ? values[idx] : '';
+                    Object.keys(fieldMappings).forEach(csvHeader => {
+                        const mappedHeader = mapping[csvHeader];
+                        if (!mappedHeader) return;
 
-                        if (fieldMappings[dbField].type === 'number') {
+                        const idx = headers.indexOf(mappedHeader);
+                        let value = idx >= 0 ? values[idx] : '';
+                        
+                        const config = fieldMappings[csvHeader];
+                        const dbField = config.name;
+
+                        if (config.type === 'number') {
                             value = parseFloat(String(value).replace(/[$ ,]/g, '')) || 0;
-                        } else if (fieldMappings[dbField].type === 'array') {
-                            value = String(value)
-                                .split(';')
-                                .map(s => s.trim())
-                                .filter(Boolean);
+                        } else if (config.type === 'array') {
+                            value = String(value).split(',').map(s => s.trim()).filter(Boolean);
                         } else {
                             value = typeof value === 'string' ? value.trim() : value;
                         }
                         rowData[dbField] = value;
                     });
 
-                    const missingRequired = Object.keys(fieldMappings).filter(dbField =>
-                        fieldMappings[dbField].required &&
-                        (rowData[dbField] === undefined || rowData[dbField] === '')
+                    const missingRequired = Object.keys(fieldMappings).filter(csvHeader =>
+                        fieldMappings[csvHeader].required &&
+                        (rowData[fieldMappings[csvHeader].name] === undefined || rowData[fieldMappings[csvHeader].name] === '')
                     );
+
                     if (missingRequired.length > 0) {
-                        toSkip.push({
-                            ...rowData,
-                            _error: `Missing required: ${missingRequired.join(', ')}`
-                        });
+                        toSkip.push({ ...rowData, _error: `Missing required fields` });
                         continue;
                     }
 
-                    const matchValueRaw = rowData[matchDbField];
-                    const matchValueKey = matchValueRaw !== undefined && matchValueRaw !== null
-                        ? String(matchValueRaw).trim()
-                        : '';
-
-                    const mappedRow = {};
-                    Object.keys(rowData).forEach(dbField => {
-                        mappedRow[fieldMappings[dbField].name] = rowData[dbField];
-                    });
-
-                    if (matchValueKey && existingMap.has(matchValueKey)) {
-                        toUpdate.push({ id: existingMap.get(matchValueKey), ...mappedRow });
+                    const matchValue = String(rowData[matchDbField] || '').trim();
+                    if (matchValue && existingMap.has(matchValue)) {
+                        toUpdate.push({ id: existingMap.get(matchValue), ...rowData });
                     } else {
-                        toCreate.push(mappedRow);
+                        toCreate.push(rowData);
                     }
                 }
 
-                setPreview({ toCreate, toUpdate, toSkip, errors });
+                setPreview({ toCreate, toUpdate, toSkip });
                 setStep('preview');
                 setIsProcessing(false);
             };
@@ -186,179 +178,87 @@ const CSVImporter = ({ collectionRef, fieldMappings, onComplete }) => {
                 batch.update(docRef, data);
             });
             await batch.commit();
-            // Reset
-            setStep('upload');
-            setFile(null);
-            setPreview(null);
-            setHeaders([]);
-            setMapping({});
-            setError('');
-            setIsProcessing(false);
-            if (onComplete) onComplete();
+            onComplete();
         } catch (err) {
             setError('Import failed: ' + err.message);
             setIsProcessing(false);
         }
     };
 
-    const requiredFields = Object.keys(fieldMappings).filter(f => fieldMappings[f].required);
-    const missingMappings = requiredFields.filter(dbField => !mapping[dbField]);
-    const isMappingValid = missingMappings.length === 0;
-
-    if (step === 'upload') {
-        return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-                <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg">
-                    <h3 className="text-lg font-semibold mb-4">Import from CSV</h3>
-                    <p className="text-sm text-gray-600 mb-2">Upload a CSV file to bulk update your data.</p>
-                    <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleFileChange}
-                        className="w-full p-2 border rounded-md"
-                    />
-                    {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-                    <div className="mt-6 flex justify-end">
-                        <button onClick={onComplete} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
-                    </div>
-                </div>
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+            <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl">
+                {step === 'upload' && (
+                    <>
+                        <h3 className="text-lg font-semibold mb-4">Import from CSV</h3>
+                        <p className="text-sm text-gray-600 mb-2">Upload a CSV file to bulk add or update your data.</p>
+                        <input type="file" accept=".csv" onChange={handleFileChange} className="w-full p-2 border rounded-md" />
+                        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                        <div className="mt-6 flex justify-end">
+                            <button onClick={onComplete} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
+                        </div>
+                    </>
+                )}
+                {step === 'mapping' && (
+                    <>
+                         <h3 className="text-lg font-semibold mb-4">Map CSV Columns</h3>
+                         <p className="text-sm text-gray-600 mb-2">Match your CSV columns to the database fields. The system will try to auto-match them.</p>
+                         <div className="max-h-96 overflow-y-auto">
+                            <table className="min-w-full">
+                                <thead>
+                                    <tr>
+                                        <th className="text-left text-sm font-semibold p-2">CSV Header</th>
+                                        <th className="text-left text-sm font-semibold p-2">Database Field</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {Object.keys(fieldMappings).map(csvHeader => (
+                                    <tr key={csvHeader}>
+                                        <td className="p-2 font-medium">{csvHeader} {fieldMappings[csvHeader].required && <span className="text-red-500">*</span>}</td>
+                                        <td className="p-2">
+                                            <select value={mapping[csvHeader] || ''} onChange={e => handleMappingChange(csvHeader, e.target.value)} className="w-full p-2 border rounded-md bg-white">
+                                                <option value="">-- Do not import --</option>
+                                                {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                         </div>
+                         <div className="flex justify-end space-x-4 mt-4">
+                            <button onClick={() => setStep('upload')} className="px-4 py-2 bg-gray-200 rounded-md">Back</button>
+                            <button onClick={handlePreview} disabled={isProcessing} className="px-4 py-2 bg-blue-600 text-white rounded-md">{isProcessing ? "Processing..." : "Preview"}</button>
+                         </div>
+                    </>
+                )}
+                 {step === 'preview' && (
+                     <>
+                        <h3 className="text-lg font-semibold mb-4">Preview Import</h3>
+                        <div className="grid grid-cols-3 gap-4 text-center mb-4">
+                             <div className="bg-blue-100 p-2 rounded">
+                                <div className="text-xl font-bold">{preview.toCreate.length}</div>
+                                <div className="text-sm">New Records</div>
+                             </div>
+                             <div className="bg-green-100 p-2 rounded">
+                                <div className="text-xl font-bold">{preview.toUpdate.length}</div>
+                                <div className="text-sm">Records to Update</div>
+                             </div>
+                              <div className="bg-yellow-100 p-2 rounded">
+                                <div className="text-xl font-bold">{preview.toSkip.length}</div>
+                                <div className="text-sm">Skipped Records</div>
+                             </div>
+                        </div>
+                        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+                        <div className="flex justify-end space-x-4 mt-4">
+                            <button onClick={() => setStep('mapping')} className="px-4 py-2 bg-gray-200 rounded-md">Back</button>
+                            <button onClick={handleImport} disabled={isProcessing} className="px-4 py-2 bg-green-600 text-white rounded-md">{isProcessing ? "Importing..." : "Confirm & Import"}</button>
+                        </div>
+                     </>
+                 )}
             </div>
-        );
-    }
-
-    if (step === 'mapping') {
-        return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-                <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-xl">
-                    <h3 className="text-lg font-semibold mb-4">Map CSV Columns</h3>
-                    <p className="text-sm text-gray-600 mb-2">Match your CSV columns to database fields.</p>
-                    <table className="min-w-full mb-6">
-                        <thead>
-                        <tr>
-                            <th className="px-2 py-1 text-left text-xs font-semibold text-gray-500">Database Field</th>
-                            <th className="px-2 py-1 text-left text-xs font-semibold text-gray-500">CSV Column</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {Object.keys(fieldMappings).map(dbField => (
-                            <tr key={dbField}>
-                                <td className="px-2 py-1 text-sm font-medium text-gray-700">
-                                    {dbField}
-                                    {fieldMappings[dbField].required &&
-                                        <span className="text-red-500 ml-1">*</span>}
-                                    {fieldMappings[dbField].isMatchKey &&
-                                        <span className="ml-2 text-xs font-semibold text-blue-600">(Match Key)</span>}
-                                </td>
-                                <td className="px-2 py-1">
-                                    <select
-                                        value={mapping[dbField] || ''}
-                                        onChange={(e) => handleMappingChange(dbField, e.target.value)}
-                                        className={`w-full p-1 border rounded-md bg-white text-sm ${fieldMappings[dbField].required && !mapping[dbField] ? 'border-red-500' : ''}`}
-                                    >
-                                        <option value="">-- Select Column --</option>
-                                        {headers.map(h => (
-                                            <option key={h} value={h}>{h}</option>
-                                        ))}
-                                    </select>
-                                </td>
-                            </tr>
-                        ))}
-                        </tbody>
-                    </table>
-                    {missingMappings.length > 0 && (
-                        <div className="text-red-500 text-sm mb-3">
-                            Please map all required fields: {missingMappings.join(', ')}
-                        </div>
-                    )}
-                    {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-                    <div className="flex justify-end space-x-4">
-                        <button
-                            onClick={() => setStep('upload')}
-                            className="px-4 py-2 bg-gray-200 rounded-md"
-                        >
-                            Back
-                        </button>
-                        <button
-                            onClick={handlePreview}
-                            disabled={!isMappingValid || isProcessing}
-                            className={`px-4 py-2 bg-blue-600 text-white rounded-md ${(!isMappingValid || isProcessing) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                            {isProcessing ? 'Processing...' : 'Preview Import'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (step === 'preview') {
-        return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-                <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl">
-                    <h3 className="text-lg font-semibold mb-4">Preview Import</h3>
-                    {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-                    <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                        <div className="bg-blue-50 p-3 rounded-md">
-                            <div className="text-2xl font-bold text-blue-700">{preview?.toCreate.length || 0}</div>
-                            <div className="text-sm font-medium text-blue-600">New Records</div>
-                        </div>
-                        <div className="bg-green-50 p-3 rounded-md">
-                            <div className="text-2xl font-bold text-green-700">{preview?.toUpdate.length || 0}</div>
-                            <div className="text-sm font-medium text-green-600">To Update</div>
-                        </div>
-                        <div className="bg-red-50 p-3 rounded-md">
-                            <div className="text-2xl font-bold text-red-700">{preview?.toSkip.length || 0}</div>
-                            <div className="text-sm font-medium text-red-600">Skipped</div>
-                        </div>
-                    </div>
-
-                    {preview?.toSkip.length > 0 && (
-                        <div className="max-h-32 overflow-y-auto bg-red-50 rounded-md p-2 mb-4 text-xs font-mono text-red-700 border border-red-300">
-                            <p className="font-bold mb-1">Skipped Rows (first 5):</p>
-                            {preview.toSkip.slice(0, 5).map((item, idx) => (
-                                <div key={idx} className="truncate">
-                                    {JSON.stringify(item)}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <p className="text-xs text-gray-600 mb-2">
-                        Data preview (first 5 of each):
-                    </p>
-                    <div className="max-h-32 overflow-y-auto bg-gray-100 rounded-md p-2 mb-4 text-xs font-mono">
-                        {preview?.toCreate.slice(0, 5).map((item, idx) => (
-                            <div key={idx} className="text-blue-700 truncate">
-                                Create: {JSON.stringify(item)}
-                            </div>
-                        ))}
-                        {preview?.toUpdate.slice(0, 5).map((item, idx) => (
-                            <div key={idx} className="text-green-700 truncate">
-                                Update: {JSON.stringify(item)}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="flex justify-end space-x-4">
-                        <button
-                            onClick={() => setStep('mapping')}
-                            className="px-4 py-2 bg-gray-200 rounded-md"
-                        >
-                            Back to Mapping
-                        </button>
-                        <button
-                            onClick={handleImport}
-                            disabled={isProcessing || ((preview?.toCreate.length || 0) + (preview?.toUpdate.length || 0) === 0)}
-                            className={`px-4 py-2 bg-green-600 text-white rounded-md ${(isProcessing || ((preview?.toCreate.length || 0) + (preview?.toUpdate.length || 0) === 0)) ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                            {isProcessing ? 'Importing...' : 'Confirm and Import'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return null;
+        </div>
+    );
 };
 
 export default CSVImporter;

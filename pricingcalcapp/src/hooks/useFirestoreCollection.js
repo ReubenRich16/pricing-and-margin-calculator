@@ -3,14 +3,16 @@ import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../firebase';
 
-// Ensure the "export" keyword is here
 export const useFirestoreCollection = (collectionName) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        // If collectionName is null or undefined (e.g., while waiting for user auth),
+        // don't try to fetch.
         if (!collectionName) {
+            setData([]);
             setLoading(false);
             return;
         };
@@ -22,6 +24,7 @@ export const useFirestoreCollection = (collectionName) => {
             const collectionRef = collection(db, collectionName);
             const q = query(collectionRef);
 
+            // onSnapshot listens for real-time updates
             const unsubscribe = onSnapshot(q, (querySnapshot) => {
                 const docs = [];
                 querySnapshot.forEach((doc) => {
@@ -35,6 +38,7 @@ export const useFirestoreCollection = (collectionName) => {
                 setLoading(false);
             });
 
+            // Cleanup subscription on component unmount
             return () => unsubscribe();
 
         } catch (err) {
@@ -43,7 +47,7 @@ export const useFirestoreCollection = (collectionName) => {
             setLoading(false);
         }
 
-    }, [collectionName]);
+    }, [collectionName]); // Re-run effect if collectionName changes
 
     return { data, loading, error };
 };

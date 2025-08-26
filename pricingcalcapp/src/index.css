@@ -1,12 +1,4 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* You can add custom global styles below if needed, e.g.:
-
-body {
-  background-color: #f3f3f3;
-}
-
-But this is optional! Most styling should be done using Tailwind utility classes in your React components.
-*/

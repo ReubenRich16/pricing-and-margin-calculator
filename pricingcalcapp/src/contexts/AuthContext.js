@@ -19,13 +19,12 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         });
 
-        // Cleanup subscription on unmount
         return unsubscribe;
     }, []);
 
     const value = useMemo(() => ({
         currentUser,
-        loadingAuth: loading // Renamed to avoid conflicts
+        loadingAuth: loading
     }), [currentUser, loading]);
 
     return (

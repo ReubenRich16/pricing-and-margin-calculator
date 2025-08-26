@@ -4,6 +4,8 @@ import { Search } from 'lucide-react';
 
 const FilterBar = ({ filters, onFilterChange, filterConfig }) => {
 
+    const safeConfig = filterConfig || []; // DEFENSIVE: always array
+
     const handleInputChange = (key, value) => {
         onFilterChange(prevFilters => ({
             ...prevFilters,
@@ -18,11 +20,11 @@ const FilterBar = ({ filters, onFilterChange, filterConfig }) => {
         return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
     };
 
-    const gridColsClass = getResponsiveGridColsClass(filterConfig.length);
+    const gridColsClass = getResponsiveGridColsClass(safeConfig.length);
 
     return (
         <div className={`mb-4 grid gap-4 ${gridColsClass} items-center`}>
-            {filterConfig.map(config => {
+            {safeConfig.map(config => {
                 const { key, type, placeholder, options } = config;
                 
                 if (type === 'text') {

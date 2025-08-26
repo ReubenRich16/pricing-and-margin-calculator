@@ -4,6 +4,9 @@ import { Edit, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { consumablesGroupRule } from '../../config/sortConfig';
 import { getActiveColumns } from '../../utils/materialsGrouping';
 
+// Utility for R-value formatting
+const formatRValue = rv => (rv ? (String(rv).toUpperCase().startsWith('R') ? rv : `R${rv}`) : '');
+
 // Helper: Map column key to header label for extended S+I columns
 const customColumnLabels = {
     retrofit_ceiling_rate: 'Retrofit Ceiling S+I',
@@ -17,7 +20,6 @@ const renderTableHeader = (cols, showCombinedSI, items) => (
         {cols.map(colKey => {
             if (colKey in customColumnLabels)
                 return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">{customColumnLabels[colKey]}</th>;
-            // ...rest of headers unchanged...
             if (colKey === 'rValue')      return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">R-Value</th>;
             if (colKey === 'thickness')   return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Thickness</th>;
             if (colKey === 'density')     return <th key={colKey} className="p-3 text-left text-xs font-semibold text-gray-600 uppercase">Density</th>;
@@ -44,15 +46,14 @@ const renderTableRow = (m, cols, showCombinedSI, onEdit, onDelete) => (
         {cols.map(colKey => {
             const saleUnit = m.unit || m.unitOfMeasure || '';
             const covUnit = m.coverageUnit || '';
-            // --- Handle new S+I columns ---
             if (colKey === 'retrofit_ceiling_rate')
                 return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
             if (colKey === 'subfloor_rate')
                 return <td key={colKey} className="p-3 text-sm">{m.subfloor_rate ? `$${Number(m.subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
             if (colKey === 'retrofit_subfloor_rate')
                 return <td key={colKey} className="p-3 text-sm">{m.retrofit_subfloor_rate ? `$${Number(m.retrofit_subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-            // ...rest of row rendering unchanged...
-            if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? `R${String(m.rValue).replace(/^R/, '')}` : ''}</td>;
+            // --- FIX: Always use formatRValue ---
+            if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? formatRValue(m.rValue) : ''}</td>;
             if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
             if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
             if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;

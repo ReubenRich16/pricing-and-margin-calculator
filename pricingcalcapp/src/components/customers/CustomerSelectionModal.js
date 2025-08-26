@@ -10,19 +10,17 @@ const CustomerSelectionModal = ({ customers, onSelect, onClose }) => {
             return customers;
         }
         const term = searchTerm.toLowerCase();
-        return customers.filter(
+        return (customers || []).filter(
             customer =>
                 customer.name?.toLowerCase().includes(term) ||
                 customer.contactPerson?.toLowerCase().includes(term) ||
-                customer.email?.toLowerCase().includes(term) ||
-                customer.phone?.toLowerCase().includes(term) ||
-                customer.notes?.toLowerCase().includes(term)
+                customer.email?.toLowerCase().includes(term)
         );
     }, [customers, searchTerm]);
 
     const handleSelect = (customer) => {
         onSelect(customer);
-        onClose(); // Automatically close after selection
+        onClose();
     };
 
     return (
@@ -37,7 +35,7 @@ const CustomerSelectionModal = ({ customers, onSelect, onClose }) => {
                 <div className="mb-4">
                     <input
                         type="text"
-                        placeholder="Search customers by name, contact, email..."
+                        placeholder="Search customers..."
                         className="w-full p-2 border rounded-md"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -49,7 +47,7 @@ const CustomerSelectionModal = ({ customers, onSelect, onClose }) => {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pricing</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tags</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                             </tr>
                         </thead>
@@ -59,21 +57,21 @@ const CustomerSelectionModal = ({ customers, onSelect, onClose }) => {
                                     <tr key={customer.id}>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {customer.name}
-                                            {customer.isBuilder && (
-                                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                    Builder
-                                                </span>
-                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {customer.contactPerson}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {customer.customPricing ? (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                    Custom ({customer.pricingRules?.materialMarkupPercentage ?? 25}% markup)
+                                            {customer.isBuilder && (
+                                                <span className="mr-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                    Builder
                                                 </span>
-                                            ) : 'Standard'}
+                                            )}
+                                             {customer.customPricing && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                    Custom Pricing
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <button
@@ -94,11 +92,6 @@ const CustomerSelectionModal = ({ customers, onSelect, onClose }) => {
                             )}
                         </tbody>
                     </table>
-                </div>
-                <div className="mt-6 flex justify-end">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">
-                        Cancel
-                    </button>
                 </div>
             </div>
         </div>

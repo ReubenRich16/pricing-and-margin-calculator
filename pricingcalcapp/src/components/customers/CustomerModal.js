@@ -9,7 +9,7 @@ const DEFAULT_PRICING_RULES = {
     categoryPricing: []
 };
 
-const CustomerModal = ({ customer, onSave, onClose }) => {
+const CustomerModal = ({ isOpen, customer, onSave, onClose }) => {
     const [formData, setFormData] = useState({
         name: customer?.name || '',
         contactPerson: customer?.contactPerson || '',
@@ -23,13 +23,19 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
     });
     const [showPricingRules, setShowPricingRules] = useState(formData.customPricing);
 
+    if (!isOpen) return null;
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value
-        }));
-        if (name === 'customPricing') setShowPricingRules(checked);
+        const newValue = type === 'checkbox' ? checked : value;
+        setFormData(prev => ({ ...prev, [name]: newValue }));
+
+        if (name === 'customPricing') {
+            setShowPricingRules(checked);
+            if (!checked) {
+                setFormData(prev => ({ ...prev, pricingRules: DEFAULT_PRICING_RULES }));
+            }
+        }
     };
 
     const handlePricingRuleChange = (e) => {
@@ -39,45 +45,6 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
             pricingRules: {
                 ...prev.pricingRules,
                 [name]: parseFloat(value) || 0
-            }
-        }));
-    };
-
-    const addCategoryRule = () => {
-        setFormData(prev => ({
-            ...prev,
-            pricingRules: {
-                ...prev.pricingRules,
-                categoryPricing: [
-                    ...prev.pricingRules.categoryPricing,
-                    { category: '', discount: 0 }
-                ]
-            }
-        }));
-    };
-
-    const updateCategoryRule = (index, field, value) => {
-        const newRules = [...formData.pricingRules.categoryPricing];
-        newRules[index] = {
-            ...newRules[index],
-            [field]: field === 'discount' ? (parseFloat(value) || 0) : value
-        };
-        setFormData(prev => ({
-            ...prev,
-            pricingRules: {
-                ...prev.pricingRules,
-                categoryPricing: newRules
-            }
-        }));
-    };
-
-    const removeCategoryRule = (index) => {
-        const newRules = formData.pricingRules.categoryPricing.filter((_, i) => i !== index);
-        setFormData(prev => ({
-            ...prev,
-            pricingRules: {
-                ...prev.pricingRules,
-                categoryPricing: newRules
             }
         }));
     };
@@ -98,7 +65,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                         <X size={24}/>
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Company/Customer Name</label>
@@ -136,7 +103,7 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                     {showPricingRules && (
                         <div className="border p-4 rounded-lg bg-gray-50">
                             <h4 className="font-medium text-gray-700 mb-3">Custom Pricing Rules</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Material Markup %</label>
                                     <input type="number" name="materialMarkupPercentage" value={formData.pricingRules.materialMarkupPercentage} onChange={handlePricingRuleChange} className="w-full p-2 border rounded-md" />
@@ -146,32 +113,10 @@ const CustomerModal = ({ customer, onSave, onClose }) => {
                                     <input type="number" name="supplyOnlyDiscount" value={formData.pricingRules.supplyOnlyDiscount} onChange={handlePricingRuleChange} className="w-full p-2 border rounded-md" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Supply & Install Discount %</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">S+I Discount %</label>
                                     <input type="number" name="supplyInstallDiscount" value={formData.pricingRules.supplyInstallDiscount} onChange={handlePricingRuleChange} className="w-full p-2 border rounded-md" />
                                 </div>
                             </div>
-                            <h5 className="font-medium text-gray-700 mb-2">Category-Specific Pricing</h5>
-                            {formData.pricingRules.categoryPricing.map((rule, index) => (
-                                <div key={index} className="flex items-center space-x-2 mb-2">
-                                    <select value={rule.category} onChange={(e) => updateCategoryRule(index, 'category', e.target.value)} className="flex-grow p-2 border rounded-md bg-white">
-                                        <option value="">Select Category</option>
-                                        <option value="Bulk Insulation">Bulk Insulation</option>
-                                        <option value="Fire Protection">Fire Protection</option>
-                                        <option value="Subfloor">Subfloor</option>
-                                        <option value="Wall Wrap">Wall Wrap</option>
-                                        <option value="Consumables">Consumables</option>
-                                    </select>
-                                    <div className="w-32">
-                                        <input type="number" value={rule.discount} onChange={(e) => updateCategoryRule(index, 'discount', e.target.value)} className="w-full p-2 border rounded-md" placeholder="Discount %" />
-                                    </div>
-                                    <button type="button" onClick={() => removeCategoryRule(index)} className="text-red-500 hover:text-red-700">
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={addCategoryRule} className="mt-2 text-sm text-blue-600 hover:text-blue-800">
-                                + Add Category Rule
-                            </button>
                         </div>
                     )}
                     <div>

@@ -1,14 +1,6 @@
 // src/components/quote/QuoteSummary.js
 import React from 'react';
 
-/**
- * QuoteSummary
- * Displays a summary of calculated totals for the current worksheet.
- * Props:
- * - calculations: result from calculateTotals
- * - className: optional Tailwind classes
- * - showMarginColour: if true, applies coloured box for margin % (default: true)
- */
 const getMarginColour = (margin) => {
     if (margin >= 20) return 'bg-green-100 text-green-800';
     if (margin >= 10) return 'bg-yellow-100 text-yellow-800';

@@ -1,19 +1,22 @@
-// src/pages/CustomerManager.js
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCustomers } from '../contexts/CustomersContext';
 import CustomerModal from '../components/customers/CustomerModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import FilterBar from '../components/common/FilterBar';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { filterBySearchTerm } from '../utils/filter';
+
+const customerFilterConfig = [
+  { key: 'search', type: 'text', placeholder: 'Filter by name or contact...' }
+];
 
 const CustomerManager = () => {
-    // DEFENSIVE CODING: Default 'customers' to an empty array.
     const { customers = [], loading, error, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [currentCustomer, setCurrentCustomer] = useState(null);
     const [customerToDelete, setCustomerToDelete] = useState(null);
-    const [filter, setFilter] = useState('');
+    const [filters, setFilters] = useState({ search: "" });
 
     const handleAddNew = () => {
         setCurrentCustomer(null);
@@ -48,9 +51,10 @@ const CustomerManager = () => {
         setCurrentCustomer(null);
     };
 
-    const filteredData = customers.filter(customer =>
-        customer?.name?.toLowerCase().includes(filter.toLowerCase()) ||
-        customer?.contactPerson?.toLowerCase().includes(filter.toLowerCase())
+    // Use centralized filter utility
+    const filteredData = useMemo(() =>
+        filterBySearchTerm(customers, filters.search, ['name', 'contactPerson', 'email', 'phone']),
+        [customers, filters.search]
     );
 
     if (loading) return <div className="p-4">Loading customers...</div>;
@@ -70,13 +74,16 @@ const CustomerManager = () => {
                     </button>
                 </div>
                 
-                <FilterBar filter={filter} setFilter={setFilter} placeholder="Filter by name or contact..." />
+                <FilterBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  filterConfig={customerFilterConfig}
+                />
 
                 <div className="bg-white shadow-md rounded-lg overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
                             <tr>
-                                {/* FEATURES RESTORED: Added all original columns back */}
                                 <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                                 <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact Person</th>
                                 <th className="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
@@ -97,7 +104,7 @@ const CustomerManager = () => {
                                             {customer.isBuilder && (
                                                 <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full">Builder</span>
                                             )}
-                                            {customer.hasCustomPricing && (
+                                            {customer.customPricing && (
                                                 <span className="px-2 py-1 text-xs font-semibold text-purple-800 bg-purple-200 rounded-full">Custom Pricing</span>
                                             )}
                                         </div>

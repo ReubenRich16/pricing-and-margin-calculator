@@ -1,12 +1,16 @@
-// src/pages/LabourManager.js
 import React, { useState, useMemo } from 'react';
 import { useLabour } from '../contexts/LabourContext';
 import { getLabourRatesCollection, deleteEntireCollection } from '../firebase';
 import LabourModal from '../components/labour/LabourModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
-import FilterBar from '../components/common/FilterBar'; // Make sure this is imported
+import FilterBar from '../components/common/FilterBar';
 import { PlusCircle, Edit, Trash2, ChevronDown, ChevronRight, Upload, Trash } from 'lucide-react';
+import { filterBySearchTerm } from '../utils/filter';
+
+const labourFilterConfig = [
+  { key: 'search', type: 'text', placeholder: 'Search by description or application...' }
+];
 
 const LabourManager = () => {
     const { labourRates = [], loading, error, addLabourRate, updateLabourRate, deleteLabourRate } = useLabour();
@@ -16,20 +20,18 @@ const LabourManager = () => {
     const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
     const [currentRate, setCurrentRate] = useState(null);
     const [rateToDelete, setRateToDelete] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [filters, setFilters] = useState({ search: "" });
     const [collapsed, setCollapsed] = useState({});
 
+    // Use centralized filter utility
     const filteredRates = useMemo(() =>
-        labourRates.filter(r =>
-            r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.application?.toLowerCase().includes(searchTerm.toLowerCase())
-        ),
-        [labourRates, searchTerm]
+        filterBySearchTerm(labourRates, filters.search, ['description', 'application', 'notes', 'unit']),
+        [labourRates, filters.search]
     );
 
     const groupedRates = useMemo(() => {
         const grouped = filteredRates.reduce((acc, r) => {
-            const category = r.application || 'Uncategorized';
+            const category = r.application || 'Uncategorised';
             if (!acc[category]) acc[category] = [];
             acc[category].push(r);
             return acc;
@@ -60,14 +62,13 @@ const LabourManager = () => {
         setIsDeleteDbConfirmOpen(false);
     };
 
-    // FIXED: Added Keywords and Notes to the import mapping
     const labourFieldMappings = {
         'Area': { name: 'description', required: true, isMatchKey: true },
         'Application': { name: 'application' },
         'Timber Frame': { name: 'timberRate', type: 'number' },
         'Steel Frame': { name: 'steelRate', type: 'number' },
         'Unit': { name: 'unit' },
-        'Keywords': { name: 'keywords', type: 'array' }, // Process as array
+        'Keywords': { name: 'keywords', type: 'array' },
         'Notes/Conditions': { name: 'notes' },
     };
 
@@ -86,14 +87,17 @@ const LabourManager = () => {
                     </div>
                 </div>
 
-                {/* FIXED: Re-added FilterBar component */}
-                <FilterBar filter={searchTerm} setFilter={setSearchTerm} placeholder="Search by description or application..." />
+                <FilterBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  filterConfig={labourFilterConfig}
+                />
 
                 <div className="bg-white shadow-md rounded-lg overflow-hidden">
                     {Object.keys(groupedRates).sort().map(category => (
                          <div key={category}>
-                            <button onClick={() => setCollapsed(p => ({...p, [category]: !p[category]}))} className="w-full flex justify-between items-center bg-gray-100 p-3 font-semibold">
-                                {category} ({groupedRates[category].length})
+                            <button onClick={() => setCollapsed(p => ({...p, [category]: !p[category]}))} className="w-full flex justify-between items-center bg-gray-100 p-3 font-semibold text-left">
+                                <span>{category} ({groupedRates[category].length})</span>
                                 {collapsed[category] ? <ChevronRight size={20}/> : <ChevronDown size={20}/>}
                             </button>
                             {!collapsed[category] && (
@@ -131,9 +135,9 @@ const LabourManager = () => {
             </div>
 
             {isModalOpen && <LabourModal rate={currentRate} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
-            {isConfirmOpen && <ConfirmationModal title="Delete Labour Rate" message={`Delete ${rateToDelete.description}?`} onConfirm={() => { deleteLabourRate(rateToDelete.id); setIsConfirmOpen(false); }} onCancel={() => setIsConfirmOpen(false)} />}
+            {isConfirmOpen && <ConfirmationModal title="Delete Labour Rate" message={`Delete ${rateToDelete?.description}?`} onConfirm={() => { deleteLabourRate(rateToDelete.id); setIsConfirmOpen(false); }} onClose={() => setIsConfirmOpen(false)} />}
             {isImportOpen && <CSVImporter collectionRef={getLabourRatesCollection()} fieldMappings={labourFieldMappings} onComplete={() => setIsImportOpen(false)} />}
-            {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Labour Database" message="Are you absolutely sure? This will permanently delete all labour rates and cannot be undone." onConfirm={handleDeleteDatabase} onCancel={() => setIsDeleteDbConfirmOpen(false)} />}
+            {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Labour Database" message="Are you absolutely sure? This will permanently delete all labour rates and cannot be undone." onConfirm={handleDeleteDatabase} onClose={() => setIsDeleteDbConfirmOpen(false)} />}
         </div>
     );
 };

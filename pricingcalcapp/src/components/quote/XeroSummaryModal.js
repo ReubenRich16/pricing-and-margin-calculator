@@ -1,5 +1,4 @@
 // src/components/quote/XeroSummaryModal.js
-// AU localisation: “Finalize” -> “Finalise”
 import React, { useState, useMemo } from 'react';
 import { X, Copy } from 'lucide-react';
 import QuoteSummary from './QuoteSummary';
@@ -18,22 +17,12 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
                     const qty = item.quantity ?? '';
                     const uom = item.unitOfMeasure || item.unit || 'unit';
                     text += `- ${item.materialName || item.description || 'Item'} (${qty} ${uom})\n`;
-                    if (Array.isArray(item.labourApplications) && item.labourApplications.length > 0) {
-                        item.labourApplications.forEach(lab => {
-                            const rate = lab.overrideRate !== '' && lab.overrideRate != null
-                                ? lab.overrideRate
-                                : lab.defaultRate;
-                            const parsedRate = parseFloat(rate) || 0;
-                            const qtyNum = parseFloat(item.quantity) || 0;
-                            text += `    • Labour: ${lab.area} (${lab.application}) ($${parsedRate.toFixed(2)}/${lab.unit} x ${qtyNum} ${lab.unit})\n`;
-                        });
-                    }
                 });
                 (group.labourItems || []).forEach(item => {
                     if (!item) return;
                     const qty = item.quantity ?? '';
                     const uom = item.unit || 'unit';
-                    text += `- Labour: ${item.area || item.description || 'Application'} (${qty} ${uom})\n`;
+                    text += `- Labour: ${item.description || 'Application'} (${qty} ${uom})\n`;
                 });
                 text += '\n';
             }
@@ -47,19 +36,7 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
 
     const handleCopy = async () => {
         try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(summaryText);
-            } else {
-                const ta = document.createElement('textarea');
-                ta.value = summaryText;
-                ta.style.position = 'fixed';
-                ta.style.top = '-1000px';
-                document.body.appendChild(ta);
-                ta.focus();
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            }
+            await navigator.clipboard.writeText(summaryText);
             setCopied(true);
             setTimeout(() => setCopied(false), 1800);
         } catch (e) {
@@ -84,7 +61,7 @@ const XeroSummaryModal = ({ worksheetData, calculations, onClose }) => {
                 <pre
                     className="bg-gray-100 p-4 rounded-md text-sm whitespace-pre-wrap font-mono overflow-auto max-h-80"
                 >
-{summaryText}
+                    {summaryText}
                 </pre>
                 <div className="mt-6 flex justify-end">
                     <button

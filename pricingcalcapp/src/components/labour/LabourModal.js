@@ -1,7 +1,7 @@
 // src/components/labour/LabourModal.js
 import React, { useState } from 'react';
 
-const LabourModal = ({ rate, onSave, onClose }) => {
+const LabourModal = ({ isOpen, rate, onSave, onClose }) => {
     const [formData, setFormData] = useState({
         application: rate?.application || 'Bulk Insulation',
         description: rate?.description || '',
@@ -11,6 +11,8 @@ const LabourModal = ({ rate, onSave, onClose }) => {
         notes: rate?.notes || '',
         keywords: Array.isArray(rate?.keywords) ? rate.keywords.join(', ') : ''
     });
+
+    if (!isOpen) return null;
 
     const handleChange = (e) =>
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));

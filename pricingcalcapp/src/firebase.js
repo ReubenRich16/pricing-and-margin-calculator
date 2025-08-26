@@ -27,7 +27,6 @@ export const getMaterialsCollection    = () => getCollectionRef('materials');
 export const getLabourRatesCollection  = () => getCollectionRef('labourRates');
 export const getCustomersCollection    = () => getCollectionRef('customers');
 
-// NEW: Function to delete all documents in a collection
 export const deleteEntireCollection = async (collectionName) => {
     const collectionRef = getCollectionRef(collectionName);
     if (!collectionRef) {
@@ -44,7 +43,6 @@ export const deleteEntireCollection = async (collectionName) => {
         console.log(`Successfully deleted all documents from ${collectionName}.`);
     } catch (error) {
         console.error(`Error deleting collection ${collectionName}:`, error);
-        // Optionally, re-throw the error to be handled by the UI
         throw error;
     }
 };
