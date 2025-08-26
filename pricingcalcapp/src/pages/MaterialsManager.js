@@ -1,132 +1,174 @@
-import React, { useState, useMemo } from 'react';
-import { useMaterials } from '../contexts/MaterialsContext';
-import { getMaterialsCollection, deleteEntireCollection } from '../firebase';
-import MaterialModal from '../components/materials/MaterialModal';
-import ConfirmationModal from '../components/common/ConfirmationModal';
-import CSVImporter from '../components/common/CSVImporter';
-import FilterBar from '../components/common/FilterBar';
-import { PlusCircle, Edit, Trash2, Upload, Trash, Eye, EyeOff } from 'lucide-react';
-import MaterialsTable from '../components/materials/MaterialsTable';
-import { groupMaterials } from '../utils/materialsGrouping';
-import { filterBySearchTerm } from '../utils/filter';
+// src/pages/MaterialsManager.js
+// --- Materials Database Management ---
+// Handles CRUD operations for materials with filtering and search functionality
 
-const materialFilterConfig = [
-  { key: 'search', type: 'text', placeholder: 'Search all fields...' }
-];
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '../firebase';
+import FilterBar from './FilterBar';
+import MaterialForm from './MaterialForm';
+import MaterialsList from './MaterialsList';
 
 const MaterialsManager = () => {
-    const { materials = [], loading, error, addMaterial, updateMaterial, deleteMaterial } = useMaterials();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-    const [isImportOpen, setIsImportOpen] = useState(false);
-    const [isDeleteDbConfirmOpen, setIsDeleteDbConfirmOpen] = useState(false);
-    const [currentMaterial, setCurrentMaterial] = useState(null);
-    const [materialToDelete, setMaterialToDelete] = useState(null);
-    const [filters, setFilters] = useState({ search: "" });
-    const [showDetails, setShowDetails] = useState(false);
+    const [materials, setMaterials] = useState([]);
+    const [filteredMaterials, setFilteredMaterials] = useState([]);
+    const [filters, setFilters] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingMaterial, setEditingMaterial] = useState(null);
 
-    // Multi-level collapse state
-    const [collapsedCat, setCollapsedCat] = useState({});
-    const [collapsedBrand, setCollapsedBrand] = useState({});
-    const [collapsedSupplier, setCollapsedSupplier] = useState({});
-    const [collapsedProduct, setCollapsedProduct] = useState({});
+    // Filter configuration for the FilterBar
+    const filterConfig = [
+        { key: 'search', type: 'text', placeholder: 'Search materials...' },
+        { key: 'category', type: 'select', placeholder: 'Filter by category', options: ['Bulk', 'Batts', 'Boards', 'Adhesives', 'Membranes'] },
+        { key: 'supplier', type: 'select', placeholder: 'Filter by supplier', options: ['Bradford', 'Knauf', 'Earthwool', 'CSR', 'Fletcher'] }
+    ];
 
-    // Use centralized filter utility
-    const filteredMaterials = useMemo(() =>
-        filterBySearchTerm(materials, filters.search),
-        [materials, filters.search]
-    );
+    // Load materials from Firestore
+    useEffect(() => {
+        const fetchMaterials = async () => {
+            try {
+                setLoading(true);
+                const materialsCollection = collection(db, 'materials');
+                const materialsSnapshot = await getDocs(materialsCollection);
+                const materialsList = materialsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setMaterials(materialsList);
+                setFilteredMaterials(materialsList);
+            } catch (error) {
+                console.error('Error fetching materials:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    // Multi-tier grouping
-    const groupedMaterials = useMemo(() => groupMaterials(filteredMaterials), [filteredMaterials]);
+        fetchMaterials();
+    }, []);
 
-    // Modal handlers
-    const handleSave = (data) => {
-        if (currentMaterial) updateMaterial(currentMaterial.id, data);
-        else addMaterial(data);
-        setIsModalOpen(false);
-    };
+    // Apply filters whenever filters or materials change
+    useEffect(() => {
+        let filtered = materials;
 
-    const handleDeleteDatabase = async () => {
-        try {
-            await deleteEntireCollection('materials');
-            alert('Materials database has been successfully cleared.');
-        } catch (err) {
-            alert('An error occurred while deleting the database.');
+        // Search filter
+        if (filters.search) {
+            const searchTerm = filters.search.toLowerCase();
+            filtered = filtered.filter(material => 
+                material.name?.toLowerCase().includes(searchTerm) ||
+                material.description?.toLowerCase().includes(searchTerm) ||
+                material.category?.toLowerCase().includes(searchTerm) ||
+                material.supplier?.toLowerCase().includes(searchTerm)
+            );
         }
-        setIsDeleteDbConfirmOpen(false);
+
+        // Category filter
+        if (filters.category) {
+            filtered = filtered.filter(material => material.category === filters.category);
+        }
+
+        // Supplier filter
+        if (filters.supplier) {
+            filtered = filtered.filter(material => material.supplier === filters.supplier);
+        }
+
+        setFilteredMaterials(filtered);
+    }, [filters, materials]);
+
+    // Handle material deletion
+    const handleDelete = async (materialId) => {
+        if (window.confirm('Are you sure you want to delete this material?')) {
+            try {
+                await deleteDoc(doc(db, 'materials', materialId));
+                setMaterials(materials.filter(m => m.id !== materialId));
+            } catch (error) {
+                console.error('Error deleting material:', error);
+            }
+        }
     };
 
-    // CSV importer mapping
-    const materialFieldMappings = {
-        'Product Name': { name: 'materialName', required: true, isMatchKey: true },
-        'Supplier': { name: 'supplier' },
-        'Brand Name': { name: 'brand' },
-        'Application': { name: 'category' },
-        'R-Value': { name: 'rValue' },
-        'Thickness (mm)': { name: 'thickness', type: 'number' },
-        'Length (mm)': { name: 'length', type: 'number' },
-        'Width (mm)': { name: 'width', type: 'number' },
-        'Coverage/Unit': { name: 'coverage', type: 'number' },
-        'Coverage Unit': { name: 'coverageUnit' },
-        'Unit': { name: 'unitOfMeasure' },
-        'Density (kg/m³)': { name: 'density', type: 'number' },
-        'Cost/Unit': { name: 'costPrice', type: 'number', required: true },
-        'S Cost/Unit': { name: 'sCostUnit', type: 'number' },
-        'S+I Timber': { name: 's_i_timber', type: 'number' },
-        'S+I Steel': { name: 's_i_steel', type: 'number' },
-        'Retrofit (existing ceiling) S+I/Coverage Unit': { name: 'retrofit_ceiling_rate', type: 'number' },
-        'Subfloor S+I/Coverage Unit': { name: 'subfloor_rate', type: 'number' },
-        'Retrofit (Subfloor) S+I/Coverage Unit': { name: 'retrofit_subfloor_rate', type: 'number' },
-        'Notes': { name: 'notes' },
-        'Keywords': { name: 'keywords', type: 'array' },
+    // Handle material save (add or edit)
+    const handleSave = (savedMaterial) => {
+        if (editingMaterial) {
+            // Update existing material
+            setMaterials(materials.map(m => 
+                m.id === savedMaterial.id ? savedMaterial : m
+            ));
+            setEditingMaterial(null);
+        } else {
+            // Add new material
+            setMaterials([...materials, savedMaterial]);
+        }
+        setShowAddForm(false);
     };
 
-    if (loading) return <div className="p-4">Loading materials...</div>;
-    if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+    // Handle edit
+    const handleEdit = (material) => {
+        setEditingMaterial(material);
+        setShowAddForm(true);
+    };
+
+    // Handle cancel form
+    const handleCancel = () => {
+        setShowAddForm(false);
+        setEditingMaterial(null);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-lg text-gray-600">Loading materials...</div>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-gray-800">Materials Manager</h1>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setShowDetails(!showDetails)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg shadow hover:bg-gray-300 flex items-center gap-2">
-                            {showDetails ? <EyeOff size={20} /> : <Eye size={20} />}
-                            {showDetails ? 'Hide Details' : 'Show Details'}
-                        </button>
-                        <button onClick={() => setIsImportOpen(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"><Upload size={20} /> Import CSV</button>
-                        <button onClick={() => { setCurrentMaterial(null); setIsModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"><PlusCircle size={20} /> Add New</button>
-                        <button onClick={() => setIsDeleteDbConfirmOpen(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700 flex items-center gap-2"><Trash size={20} /> Delete Database</button>
-                    </div>
-                </div>
-                
-                <FilterBar
-                  filters={filters}
-                  onFilterChange={setFilters}
-                  filterConfig={materialFilterConfig}
-                />
-
-                <MaterialsTable
-                    groupedMaterials={groupedMaterials}
-                    collapsedCat={collapsedCat}
-                    setCollapsedCat={setCollapsedCat}
-                    collapsedBrand={collapsedBrand}
-                    setCollapsedBrand={setCollapsedBrand}
-                    collapsedSupplier={collapsedSupplier}
-                    setCollapsedSupplier={setCollapsedSupplier}
-                    collapsedProduct={collapsedProduct}
-                    setCollapsedProduct={setCollapsedProduct}
-                    showDetails={showDetails}
-                    onEdit={m => { setCurrentMaterial(m); setIsModalOpen(true); }}
-                    onDelete={m => { setMaterialToDelete(m); setIsConfirmOpen(true); }}
-                />
+        <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Materials Database</h1>
+                <button
+                    onClick={() => setShowAddForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                    Add Material
+                </button>
             </div>
 
-            {isModalOpen && <MaterialModal material={currentMaterial} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
-            {isConfirmOpen && <ConfirmationModal title="Delete Material" message={`Delete ${materialToDelete?.materialName}?`} onClose={() => setIsConfirmOpen(false)} onConfirm={() => { deleteMaterial(materialToDelete.id); setIsConfirmOpen(false); }} />}
-            {isImportOpen && <CSVImporter collectionRef={getMaterialsCollection()} fieldMappings={materialFieldMappings} onComplete={() => setIsImportOpen(false)} />}
-            {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Materials Database" message="Are you absolutely sure? This will permanently delete all materials and cannot be undone." onConfirm={handleDeleteDatabase} onClose={() => setIsDeleteDbConfirmOpen(false)} />}
+            {/* Filter Bar */}
+            <FilterBar 
+                filters={filters} 
+                onFilterChange={setFilters} 
+                filterConfig={filterConfig}
+            />
+
+            {/* Material Form Modal */}
+            {showAddForm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+                        <MaterialForm
+                            material={editingMaterial}
+                            onSave={handleSave}
+                            onCancel={handleCancel}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Materials List */}
+            <MaterialsList
+                materials={filteredMaterials}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+            />
+
+            {/* Empty state */}
+            {filteredMaterials.length === 0 && !loading && (
+                <div className="text-center py-12">
+                    <div className="text-gray-500 text-lg">
+                        {materials.length === 0 ? 'No materials found. Add your first material!' : 'No materials match your filters.'}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

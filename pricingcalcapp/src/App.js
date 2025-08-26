@@ -1,9 +1,10 @@
+// src/App.js
 // --- App Entry Component ---
 // Handles user authentication and application initialization.
 // Renders MainApplication when authenticated, or an error/loading screen otherwise.
 
 import React, { useState, useEffect } from 'react';
-import { auth } from './firebase'; // Only import 'db' if you need Firestore here.
+import { auth } from './firebase';
 import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import MainApplication from './components/layout/MainApplication';
 
@@ -20,7 +21,7 @@ const App = () => {
                 setLoading(false);
             } else {
                 try {
-                    // Always sign in anonymously for now.
+                    // Just sign in anonymously
                     await signInAnonymously(auth);
                 } catch (error) {
                     console.error("Automatic sign-in failed:", error);

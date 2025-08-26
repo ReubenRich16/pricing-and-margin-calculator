@@ -1,3 +1,4 @@
+// src/pages/CustomerManager.js
 import React, { useState, useMemo } from 'react';
 import { useCustomers } from '../contexts/CustomersContext';
 import CustomerModal from '../components/customers/CustomerModal';

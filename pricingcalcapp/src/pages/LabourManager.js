@@ -1,3 +1,4 @@
+// src/pages/LabourManager.js
 import React, { useState, useMemo } from 'react';
 import { useLabour } from '../contexts/LabourContext';
 import { getLabourRatesCollection, deleteEntireCollection } from '../firebase';
