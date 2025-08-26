@@ -12,7 +12,6 @@ const customColumnLabels = {
     retrofit_subfloor_rate: 'Retrofit Subfloor S+I',
 };
 
-// Table header renderer
 const renderTableHeader = (cols, showCombinedSI, showDetails) => (
     <tr>
         {cols.map(colKey => {
@@ -41,7 +40,47 @@ const renderTableHeader = (cols, showCombinedSI, showDetails) => (
     </tr>
 );
 
-// Table row renderer for compact mode (width dropdown)
+// --- Flat row for details mode ---
+function MaterialFlatRow({ m, cols, showCombinedSI, onEdit, onDelete, showDetails }) {
+    const saleUnit = m.unitOfMeasure || '';
+    const covUnit = m.coverageUnit || '';
+    return (
+        <tr key={m.id || Math.random()}>
+            {cols.map(colKey => {
+                if (colKey === 'density' && !showDetails) return null;
+                if (colKey === 'retrofit_ceiling_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'subfloor_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.subfloor_rate ? `$${Number(m.subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'retrofit_subfloor_rate')
+                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_subfloor_rate ? `$${Number(m.retrofit_subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? formatRValue(m.rValue) : ''}</td>;
+                if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
+                if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
+                if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;
+                if (colKey === 'coverage')    return <td key={colKey} className="p-3 text-sm">{m.coverage ? `${m.coverage} ${covUnit}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 'coverageUnit')return <td key={colKey} className="p-3 text-sm">{m.coverageUnit || ''}</td>;
+                if (colKey === 'unitOfMeasure')return <td key={colKey} className="p-3 text-sm">{m.unitOfMeasure || ''}</td>;
+                if (colKey === 'costPrice')   return <td key={colKey} className="p-3 text-sm text-red-600 font-medium">{m.costPrice ? `$${Number(m.costPrice).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 'sCostUnit')   return <td key={colKey} className="p-3 text-sm font-semibold">{m.sCostUnit ? `$${Number(m.sCostUnit).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_combined')return <td key={colKey} className="p-3 text-sm">{(m.s_i_timber || m.s_i_steel) ? `$${Number(m.s_i_timber || m.s_i_steel || 0).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_timber' && !showCombinedSI)
+                    return <td key={colKey} className="p-3 text-sm">{m.s_i_timber ? `$${Number(m.s_i_timber).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 's_i_steel' && !showCombinedSI)
+                    return <td key={colKey} className="p-3 text-sm">{m.s_i_steel ? `$${Number(m.s_i_steel).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+                if (colKey === 'length')      return <td key={colKey} className="p-3 text-sm">{m.length ? `${m.length}mm` : ''}</td>;
+                if (colKey === 'keywords')    return <td key={colKey} className="p-3 text-sm">{Array.isArray(m.keywords) ? m.keywords.join(', ') : m.keywords || ''}</td>;
+                return <td key={colKey} className="p-3 text-sm">{m[colKey] !== undefined && m[colKey] !== null ? String(m[colKey]) : ''}</td>;
+            })}
+            <td className="p-3 text-center">
+                <button onClick={() => onEdit(m)} className="text-blue-500 mr-2"><Edit size={18} /></button>
+                <button onClick={() => onDelete(m)} className="text-red-500"><Trash2 size={18} /></button>
+            </td>
+        </tr>
+    );
+}
+
+// --- Row for compact mode ---
 function MaterialVariantRow({
     variants, cols, showCombinedSI, onEdit, onDelete,
     groupKey, selectedIdx, setSelectedIdx, showDetails
@@ -114,46 +153,6 @@ function MaterialVariantRow({
     );
 }
 
-// Table row renderer for details mode (flat row per variant)
-function MaterialFlatRow({ m, cols, showCombinedSI, onEdit, onDelete, showDetails }) {
-    const saleUnit = m.unitOfMeasure || '';
-    const covUnit = m.coverageUnit || '';
-    return (
-        <tr key={m.id || Math.random()}>
-            {cols.map(colKey => {
-                if (colKey === 'density' && !showDetails) return null;
-                if (colKey === 'retrofit_ceiling_rate')
-                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 'subfloor_rate')
-                    return <td key={colKey} className="p-3 text-sm">{m.subfloor_rate ? `$${Number(m.subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 'retrofit_subfloor_rate')
-                    return <td key={colKey} className="p-3 text-sm">{m.retrofit_subfloor_rate ? `$${Number(m.retrofit_subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? formatRValue(m.rValue) : ''}</td>;
-                if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
-                if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
-                if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;
-                if (colKey === 'coverage')    return <td key={colKey} className="p-3 text-sm">{m.coverage ? `${m.coverage} ${covUnit}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
-                if (colKey === 'coverageUnit')return <td key={colKey} className="p-3 text-sm">{m.coverageUnit || ''}</td>;
-                if (colKey === 'unitOfMeasure')return <td key={colKey} className="p-3 text-sm">{m.unitOfMeasure || ''}</td>;
-                if (colKey === 'costPrice')   return <td key={colKey} className="p-3 text-sm text-red-600 font-medium">{m.costPrice ? `$${Number(m.costPrice).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
-                if (colKey === 'sCostUnit')   return <td key={colKey} className="p-3 text-sm font-semibold">{m.sCostUnit ? `$${Number(m.sCostUnit).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
-                if (colKey === 's_i_combined')return <td key={colKey} className="p-3 text-sm">{(m.s_i_timber || m.s_i_steel) ? `$${Number(m.s_i_timber || m.s_i_steel || 0).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 's_i_timber' && !showCombinedSI)
-                    return <td key={colKey} className="p-3 text-sm">{m.s_i_timber ? `$${Number(m.s_i_timber).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 's_i_steel' && !showCombinedSI)
-                    return <td key={colKey} className="p-3 text-sm">{m.s_i_steel ? `$${Number(m.s_i_steel).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
-                if (colKey === 'length')      return <td key={colKey} className="p-3 text-sm">{m.length ? `${m.length}mm` : ''}</td>;
-                if (colKey === 'keywords')    return <td key={colKey} className="p-3 text-sm">{Array.isArray(m.keywords) ? m.keywords.join(', ') : m.keywords || ''}</td>;
-                return <td key={colKey} className="p-3 text-sm">{m[colKey] !== undefined && m[colKey] !== null ? String(m[colKey]) : ''}</td>;
-            })}
-            <td className="p-3 text-center">
-                <button onClick={() => onEdit(m)} className="text-blue-500 mr-2"><Edit size={18} /></button>
-                <button onClick={() => onDelete(m)} className="text-red-500"><Trash2 size={18} /></button>
-            </td>
-        </tr>
-    );
-}
-
 const MaterialsTable = ({
     groupedMaterials,
     collapsedCat,
@@ -169,11 +168,6 @@ const MaterialsTable = ({
     onDelete
 }) => {
     const [selectedWidthIdxByRow, setSelectedWidthIdxByRow] = useState({});
-
-    // Helper: determine if product group is details (flat) or compact (array-of-arrays)
-    function isDetailMode(items) {
-        return Array.isArray(items) && items.length > 0 && !Array.isArray(items[0]);
-    }
 
     return (
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -204,6 +198,8 @@ const MaterialsTable = ({
                                                 let items = supplierProducts[prodName];
                                                 if (!Array.isArray(items)) items = [];
                                                 const { active: cols, showCombinedSI } = getActiveColumns(items, showDetails);
+                                                // --- KEY: Check if items is a flat array (detail) or array-of-arrays (compact) ---
+                                                const isDetailMode = showDetails || items.every(item => !Array.isArray(item));
                                                 return (
                                                     <div key={prodName} className="mb-3">
                                                         <div className="font-semibold px-3 py-2 text-gray-700">{prodName} ({Array.isArray(items) ? items.length : 0})</div>
@@ -213,8 +209,8 @@ const MaterialsTable = ({
                                                                     {renderTableHeader(cols, showCombinedSI, showDetails)}
                                                                 </thead>
                                                                 <tbody className="bg-white divide-y divide-gray-200">
-                                                                    {isDetailMode(items)
-                                                                        ? items.map(m =>
+                                                                    {isDetailMode
+                                                                        ? items.map(m => (
                                                                             <MaterialFlatRow
                                                                                 key={m.id || Math.random()}
                                                                                 m={m}
@@ -224,7 +220,7 @@ const MaterialsTable = ({
                                                                                 onEdit={onEdit}
                                                                                 onDelete={onDelete}
                                                                             />
-                                                                        )
+                                                                        ))
                                                                         : items.map((variants, rowIdx) => {
                                                                             const groupKey = `${category}|${supplier}|${prodName}|${rowIdx}`;
                                                                             const selectedIdx = selectedWidthIdxByRow[groupKey] ?? 0;
@@ -276,8 +272,14 @@ const MaterialsTable = ({
                                                         </button>
                                                         {!collapsedSupplier?.[`${category}|${brand}|${supplier}`] && Object.keys(supplierProducts).map(prodName => {
                                                             let items = supplierProducts[prodName];
-                                                            if (!Array.isArray(items)) items = [];
-                                                            const { active: cols, showCombinedSI } = getActiveColumns(items, showDetails);
+                                                            // --- KEY: Check if items is a flat array (detail) or array-of-arrays (compact) ---
+                                                            const { active: cols, showCombinedSI } = getActiveColumns(
+                                                                Array.isArray(items)
+                                                                    ? (items.length > 0 && Array.isArray(items[0]) ? items[0] : items)
+                                                                    : [],
+                                                                showDetails
+                                                            );
+                                                            const isDetailMode = showDetails || items.every(item => !Array.isArray(item));
                                                             return (
                                                                 <div key={prodName} className="mb-3">
                                                                     <div className="font-semibold px-3 py-2 text-gray-700">{prodName} ({Array.isArray(items) ? items.length : 0})</div>
@@ -287,8 +289,8 @@ const MaterialsTable = ({
                                                                                 {renderTableHeader(cols, showCombinedSI, showDetails)}
                                                                             </thead>
                                                                             <tbody className="bg-white divide-y divide-gray-200">
-                                                                                {isDetailMode(items)
-                                                                                    ? items.map(m =>
+                                                                                {isDetailMode
+                                                                                    ? items.map(m => (
                                                                                         <MaterialFlatRow
                                                                                             key={m.id || Math.random()}
                                                                                             m={m}
@@ -298,7 +300,7 @@ const MaterialsTable = ({
                                                                                             onEdit={onEdit}
                                                                                             onDelete={onDelete}
                                                                                         />
-                                                                                    )
+                                                                                    ))
                                                                                     : items.map((variants, rowIdx) => {
                                                                                         const groupKey = `${category}|${brand}|${supplier}|${prodName}|${rowIdx}`;
                                                                                         const selectedIdx = selectedWidthIdxByRow[groupKey] ?? 0;
