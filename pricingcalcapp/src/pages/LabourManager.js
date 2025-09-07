@@ -1,3 +1,4 @@
+// src/pages/LabourManager.js
 import React, { useState, useMemo } from 'react';
 import { useLabour } from '../contexts/LabourContext';
 import { getLabourRatesCollection, deleteEntireCollection } from '../firebase';
@@ -6,11 +7,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import CSVImporter from '../components/common/CSVImporter';
 import FilterBar from '../components/common/FilterBar';
 import { PlusCircle, Edit, Trash2, ChevronDown, ChevronRight, Upload, Trash } from 'lucide-react';
-<<<<<<< Updated upstream
 import { filterBySearchTerm } from '../utils/filter';
-=======
-import { filterBySearchTerm } from '../utils/filter'; // <--- Import utility
->>>>>>> Stashed changes
 
 const labourFilterConfig = [
   { key: 'search', type: 'text', placeholder: 'Search by description or application...' }
@@ -29,13 +26,8 @@ const LabourManager = () => {
 
     // Use centralized filter utility
     const filteredRates = useMemo(() =>
-<<<<<<< Updated upstream
         filterBySearchTerm(labourRates, filters.search, ['description', 'application', 'notes', 'unit']),
         [labourRates, filters.search]
-=======
-        filterBySearchTerm(labourRates, searchTerm, ['description', 'application', 'notes', 'unit']),
-        [labourRates, searchTerm]
->>>>>>> Stashed changes
     );
 
     const groupedRates = useMemo(() => {
@@ -97,13 +89,8 @@ const LabourManager = () => {
                 </div>
 
                 <FilterBar
-<<<<<<< Updated upstream
                   filters={filters}
                   onFilterChange={setFilters}
-=======
-                  filters={{ search: searchTerm }}
-                  onFilterChange={updated => setSearchTerm(updated.search)}
->>>>>>> Stashed changes
                   filterConfig={labourFilterConfig}
                 />
 
@@ -149,13 +136,8 @@ const LabourManager = () => {
             </div>
 
             {isModalOpen && <LabourModal rate={currentRate} onSave={handleSave} onClose={() => setIsModalOpen(false)} />}
-<<<<<<< Updated upstream
             {isConfirmOpen && <ConfirmationModal title="Delete Labour Rate" message={`Delete ${rateToDelete?.description}?`} onConfirm={() => { deleteLabourRate(rateToDelete.id); setIsConfirmOpen(false); }} onClose={() => setIsConfirmOpen(false)} />}
             {isImportOpen && <CSVImporter isOpen={isImportOpen} collectionRef={getLabourRatesCollection()} fieldMappings={labourFieldMappings} onComplete={() => setIsImportOpen(false)} />}
-=======
-            {isConfirmOpen && <ConfirmationModal title="Delete Labour Rate" message={`Delete ${rateToDelete.description}?`} onConfirm={() => { deleteLabourRate(rateToDelete.id); setIsConfirmOpen(false); }} onClose={() => setIsConfirmOpen(false)} />}
-            {isImportOpen && <CSVImporter collectionRef={getLabourRatesCollection()} fieldMappings={labourFieldMappings} onComplete={() => setIsImportOpen(false)} />}
->>>>>>> Stashed changes
             {isDeleteDbConfirmOpen && <ConfirmationModal title="Delete Entire Labour Database" message="Are you absolutely sure? This will permanently delete all labour rates and cannot be undone." onConfirm={handleDeleteDatabase} onClose={() => setIsDeleteDbConfirmOpen(false)} />}
         </div>
     );

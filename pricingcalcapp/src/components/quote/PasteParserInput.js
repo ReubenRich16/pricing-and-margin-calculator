@@ -185,10 +185,7 @@ const PasteParserInput = ({ materials, onParse }) => {
         let trailingLines = [];
         let lastItemIdx = null;
 
-<<<<<<< Updated upstream
         // eslint-disable-next-line no-loop-func
-=======
->>>>>>> Stashed changes
         let i = 0;
         while (i < linesRaw.length) {
             let line = linesRaw[i].trim();

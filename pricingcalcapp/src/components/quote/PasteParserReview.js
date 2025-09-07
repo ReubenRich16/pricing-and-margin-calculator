@@ -59,10 +59,6 @@ function isPanelTypeMaterial(material) {
     return panelKeywords.some(k => name.includes(k) || cat.includes(k));
 }
 
-<<<<<<< Updated upstream
-=======
-// CHANGE: R-value scoring logic now prefers exact matches
->>>>>>> Stashed changes
 function scoreMaterialForItem(material, item, selectedBulkBrand, brandOverride) {
     const isDampcourseLine = dampcourseKeywords.some(k => (item.description || '').toUpperCase().includes(k));
     const isDampcourseMat = dampcourseKeywords.some(k => (material.materialName || '').toUpperCase().includes(k));
@@ -254,10 +250,6 @@ function getMaterialOptions(materials, item, selectedBulkBrand, brandOverride) {
                 }))
                 .filter(opt => opt.scoreObj.score > -20)
                 .sort((a, b) => {
-<<<<<<< Updated upstream
-=======
-                    // CHANGE: R-value scoring exact > fuzzy > none
->>>>>>> Stashed changes
                     if (b.scoreObj.rValueScore !== a.scoreObj.rValueScore)
                         return b.scoreObj.rValueScore - a.scoreObj.rValueScore;
                     if (b.scoreObj.perfectDimensionMatch !== a.scoreObj.perfectDimensionMatch)
@@ -310,10 +302,6 @@ function getMaterialOptions(materials, item, selectedBulkBrand, brandOverride) {
 
     shortlist = shortlist
         .sort((a, b) => {
-<<<<<<< Updated upstream
-=======
-            // CHANGE: R-value scoring exact > fuzzy > none
->>>>>>> Stashed changes
             if (b.scoreObj.rValueScore !== a.scoreObj.rValueScore)
                 return b.scoreObj.rValueScore - a.scoreObj.rValueScore;
             if (b.scoreObj.score !== a.scoreObj.score) return b.scoreObj.score - a.scoreObj.score;
@@ -397,11 +385,7 @@ const PasteParserReview = ({
                     const options = getMaterialOptions(materials, item, selectedBulkBrand, brandOverride);
                     const valueObj = options.find(opt => opt.value === item.materialId) || null;
                     const isBulk = item.category === "Bulk Insulation";
-<<<<<<< Updated upstream
                     // Removed: const isPanelItem = isPanelTypeItem(item);
-=======
-                    const isPanelItem = isPanelTypeItem(item);
->>>>>>> Stashed changes
 
                     const warningMsg = options.length > 0 && options[0].warning ? options[0].warning : '';
 

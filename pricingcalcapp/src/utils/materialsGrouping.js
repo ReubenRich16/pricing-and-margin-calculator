@@ -1,3 +1,4 @@
+// src/utils/materialsGrouping.js
 import {
   categoryOrder,
   brandOrder,
@@ -6,28 +7,32 @@ import {
   consumablesGroupRule
 } from '../config/sortConfig';
 
-// Columns to always exclude from tables
-const EXCLUDED_COLUMNS = [
-  'notes', 'keywords', 'supplier', 'brand', 'materialName', 'category'
-];
-
-// Columns for compact mode (variant comparison only)
-const COMPACT_COLUMNS = [
-  'rValue', 'thickness', 'width', 'coverage', 'costPrice', 'sCostUnit', 's_i_timber', 's_i_steel'
-];
-
-// Helper: get strictly ordered, non-empty columns for product group
+// --- Helper: get strictly ordered, non-empty columns for product group ---
 export function getActiveColumns(items, showDetails) {
     if (!Array.isArray(items)) items = [];
 
-    // Remove grouping/notes/keywords columns
-    let orderedKeys = materialColumns.map(col => col.key)
-        .filter(key => !EXCLUDED_COLUMNS.includes(key));
+    let orderedKeys = materialColumns.map(col => col.key);
 
-    let baseColumns = showDetails ? orderedKeys : COMPACT_COLUMNS;
+    // Remove 'notes' and 'keywords' ALWAYS
+    orderedKeys = orderedKeys.filter(key => key !== 'notes' && key !== 'keywords');
 
-    // Only show columns with at least one non-empty value
-    let active = baseColumns.filter(key =>
+    // Remove 'length' unless details are ON
+    if (!showDetails) {
+        orderedKeys = orderedKeys.filter(key => key !== 'length');
+    }
+
+    // --- NEW: Retro S+I columns only when showDetails and at least one value ---
+    const extraDetailColumns = [
+        'retrofit_ceiling_rate',
+        'subfloor_rate',
+        'retrofit_subfloor_rate'
+    ];
+    if (!showDetails) {
+        orderedKeys = orderedKeys.filter(key => !extraDetailColumns.includes(key));
+    }
+
+    // Only include columns that have at least one non-empty value in group
+    let active = orderedKeys.filter(key =>
         items.some(i =>
             i[key] !== undefined &&
             String(i[key]).trim() !== '' &&
@@ -35,8 +40,19 @@ export function getActiveColumns(items, showDetails) {
         )
     );
 
-    // Always force costPrice to be present
-    if (!active.includes('costPrice')) active.push('costPrice');
+    // When showDetails, ensure extraDetailColumns are included if any value in group
+    if (showDetails) {
+        extraDetailColumns.forEach(col => {
+            const hasValue = items.some(i =>
+                i[col] !== undefined &&
+                String(i[col]).trim() !== '' &&
+                i[col] !== 0
+            );
+            if (hasValue && !active.includes(col)) {
+                active.push(col);
+            }
+        });
+    }
 
     // S+I logic: show combined if both values are identical in all rows
     const timberVals = items.map(i => Number(i.s_i_timber || 0));
@@ -57,50 +73,39 @@ export function getActiveColumns(items, showDetails) {
     return { active, showCombinedSI };
 }
 
-// Helper: convert R-value to number reliably
-function parseRValue(val) {
-    if (val == null) return NaN;
-    let str = String(val).trim().toUpperCase();
-    if (str.startsWith('R')) str = str.replace(/^R+/i, '');
-    const num = parseFloat(str);
-    return isNaN(num) ? 0 : num;
-}
-
-// Sorting helper
+// --- Sorting helper ---
 export function sortProducts(products = []) {
     return [...products].sort((a, b) => {
-        // R-value descending
-        const rA = parseRValue(a.rValue);
-        const rB = parseRValue(b.rValue);
-        if (rA !== rB) return rB - rA;
-
-        // Thickness descending
-        const thicknessA = parseFloat(a.thickness) || 0;
-        const thicknessB = parseFloat(b.thickness) || 0;
-        if (thicknessA !== thicknessB) return thicknessB - thicknessA;
-
-        // Width descending
-        const widthA = parseFloat(a.width) || 0;
-        const widthB = parseFloat(b.width) || 0;
-        if (widthA !== widthB) return widthB - widthA;
-
-        // Density descending
-        const densityA = parseFloat(a.density) || 0;
-        const densityB = parseFloat(b.density) || 0;
-        if (densityA !== densityB) return densityB - densityA;
-
-        // Product name sort order
         const idxA = productNameSortOrder.indexOf(a.materialName);
         const idxB = productNameSortOrder.indexOf(b.materialName);
         if (idxA !== -1 && idxB !== -1 && idxA !== idxB) return idxA - idxB;
 
-        // Finally, by materialName
+        // Fallbacks
+        const rA = parseFloat(a.rValue) || 0;
+        const rB = parseFloat(b.rValue) || 0;
+        if (rA !== rB) return rB - rA;
+
+        const thicknessA = parseFloat(a.thickness) || 0;
+        const thicknessB = parseFloat(b.thickness) || 0;
+        if (thicknessA !== thicknessB) return thicknessB - thicknessA;
+
+        const densityA = parseFloat(a.density) || 0;
+        const densityB = parseFloat(b.density) || 0;
+        if (densityA !== densityB) return densityB - densityA;
+
+        const widthA = parseFloat(a.width) || 0;
+        const widthB = parseFloat(b.width) || 0;
+        if (widthA !== widthB) return widthB - widthA;
+
         return (a.materialName || '').localeCompare(b.materialName || '');
     });
 }
 
-// --- Main grouping logic ---
-export function groupMaterials(filteredMaterials, showDetails = false) {
+// --- Grouping logic ---
+// Standard: category > brand > supplier > productName
+// Consumables: category > supplier > productName
+export function groupMaterials(filteredMaterials) {
+    // 1. Group by category
     const cats = {};
     filteredMaterials.forEach(mat => {
         const category = mat.category || 'Uncategorized';
@@ -108,14 +113,17 @@ export function groupMaterials(filteredMaterials, showDetails = false) {
         cats[category].push(mat);
     });
 
+    // 2. Category order
     const orderedCats = categoryOrder.filter(cat => cats[cat]);
     const extraCats = Object.keys(cats).filter(cat => !orderedCats.includes(cat));
     const allCats = [...orderedCats, ...extraCats];
 
+    // 3. Deep grouping structure
     const result = {};
     allCats.forEach(cat => {
         const products = cats[cat];
         if (cat === consumablesGroupRule.category) {
+            // Consumables: category > supplier > productName
             const supplierGroups = {};
             products.forEach(mat => {
                 const supplier = mat.supplier || 'Unspecified';
@@ -137,6 +145,7 @@ export function groupMaterials(filteredMaterials, showDetails = false) {
                 });
             });
         } else {
+            // --- Standard: category > brand > supplier > productName ---
             const brandGroups = {};
             products.forEach(mat => {
                 const brand = mat.brand || 'Unbranded';
@@ -162,29 +171,7 @@ export function groupMaterials(filteredMaterials, showDetails = false) {
                     const prodNames = [...prodOrder, ...prodExtra.sort()];
                     result[cat][brand][supplier] = {};
                     prodNames.forEach(prodName => {
-                        const items = sortProducts(prodNameGroups[prodName]);
-                        if (!showDetails) {
-                            // Compact: group variants by all except width
-                            const variantGroups = {};
-                            items.forEach(item => {
-                                const key = [
-                                    item.rValue || "",
-                                    item.thickness || "",
-                                    item.density || "",
-                                    item.s_i_timber || "",
-                                    item.s_i_steel || "",
-                                    item.brand || "",
-                                    item.supplier || "",
-                                    item.category || "",
-                                ].join('|');
-                                if (!variantGroups[key]) variantGroups[key] = [];
-                                variantGroups[key].push(item);
-                            });
-                            result[cat][brand][supplier][prodName] = Object.values(variantGroups).map(variants => variants);
-                        } else {
-                            // Detail: show all variants as individual rows
-                            result[cat][brand][supplier][prodName] = items;
-                        }
+                        result[cat][brand][supplier][prodName] = sortProducts(prodNameGroups[prodName]);
                     });
                 });
             });

@@ -1,18 +1,11 @@
-<<<<<<< Updated upstream
 // src/pages/CustomerManager.js
-=======
->>>>>>> Stashed changes
 import React, { useState, useMemo } from 'react';
 import { useCustomers } from '../contexts/CustomersContext';
 import CustomerModal from '../components/customers/CustomerModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import FilterBar from '../components/common/FilterBar';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-<<<<<<< Updated upstream
 import { filterBySearchTerm } from '../utils/filter';
-=======
-import { filterBySearchTerm } from '../utils/filter'; // <--- Import utility
->>>>>>> Stashed changes
 
 const customerFilterConfig = [
   { key: 'search', type: 'text', placeholder: 'Filter by name or contact...' }
@@ -61,13 +54,8 @@ const CustomerManager = () => {
 
     // Use centralized filter utility
     const filteredData = useMemo(() =>
-<<<<<<< Updated upstream
         filterBySearchTerm(customers, filters.search, ['name', 'contactPerson', 'email', 'phone']),
         [customers, filters.search]
-=======
-        filterBySearchTerm(customers, filter, ['name', 'contactPerson', 'email', 'phone']),
-        [customers, filter]
->>>>>>> Stashed changes
     );
 
     if (loading) return <div className="p-4">Loading customers...</div>;
@@ -88,13 +76,8 @@ const CustomerManager = () => {
                 </div>
                 
                 <FilterBar
-<<<<<<< Updated upstream
                   filters={filters}
                   onFilterChange={setFilters}
-=======
-                  filters={{ search: filter }}
-                  onFilterChange={updated => setFilter(updated.search)}
->>>>>>> Stashed changes
                   filterConfig={customerFilterConfig}
                 />
 

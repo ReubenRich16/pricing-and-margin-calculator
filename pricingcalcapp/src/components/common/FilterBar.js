@@ -1,29 +1,16 @@
 //src/components/common/FilterBar.js
 import React from 'react';
 
-<<<<<<< Updated upstream
 const FilterBar = ({ filters = {}, onFilterChange, filterConfig = [] }) => {
     const handleFilterChange = (key, value) => {
         const newFilters = { ...filters, [key]: value };
         onFilterChange(newFilters);
-=======
-const FilterBar = ({ filters, onFilterChange, filterConfig }) => {
-
-    const safeConfig = filterConfig || []; // DEFENSIVE: always array
-
-    const handleInputChange = (key, value) => {
-        onFilterChange(prevFilters => ({
-            ...prevFilters,
-            [key]: value
-        }));
->>>>>>> Stashed changes
     };
 
     const clearFilters = () => {
         onFilterChange({});
     };
 
-<<<<<<< Updated upstream
     const hasActiveFilters = Object.values(filters).some(value => value && value.length > 0);
 
     return (
@@ -32,19 +19,6 @@ const FilterBar = ({ filters, onFilterChange, filterConfig }) => {
                 {filterConfig.map((config) => (
                     <div key={config.key} className="flex flex-col">
                         {config.type === 'text' && (
-=======
-    const gridColsClass = getResponsiveGridColsClass(safeConfig.length);
-
-    return (
-        <div className={`mb-4 grid gap-4 ${gridColsClass} items-center`}>
-            {safeConfig.map(config => {
-                const { key, type, placeholder, options } = config;
-                
-                if (type === 'text') {
-                    return (
-                        <div key={key} className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
->>>>>>> Stashed changes
                             <input
                                 type="text"
                                 placeholder={config.placeholder}
