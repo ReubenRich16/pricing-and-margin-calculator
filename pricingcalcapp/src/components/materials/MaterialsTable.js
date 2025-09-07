@@ -6,6 +6,10 @@ import { getActiveColumns } from '../../utils/materialsGrouping';
 // Utility for R-value formatting
 const formatRValue = rv => (rv ? (String(rv).toUpperCase().startsWith('R') ? rv : `R${rv}`) : '');
 
+<<<<<<< Updated upstream
+=======
+// Helper: Map column key to header label for extended S+I columns
+>>>>>>> Stashed changes
 const customColumnLabels = {
     retrofit_ceiling_rate: 'Retrofit Ceiling S+I',
     subfloor_rate: 'Subfloor S+I',
@@ -40,6 +44,7 @@ const renderTableHeader = (cols, showCombinedSI, showDetails) => (
     </tr>
 );
 
+<<<<<<< Updated upstream
 // --- Flat row for details mode ---
 function MaterialFlatRow({ m, cols, showCombinedSI, onEdit, onDelete, showDetails }) {
     const saleUnit = m.unitOfMeasure || '';
@@ -152,6 +157,43 @@ function MaterialVariantRow({
         </tr>
     );
 }
+=======
+// Helper for table row rendering
+const renderTableRow = (m, cols, showCombinedSI, onEdit, onDelete) => (
+    <tr key={m.id}>
+        {cols.map(colKey => {
+            const saleUnit = m.unit || m.unitOfMeasure || '';
+            const covUnit = m.coverageUnit || '';
+            if (colKey === 'retrofit_ceiling_rate')
+                return <td key={colKey} className="p-3 text-sm">{m.retrofit_ceiling_rate ? `$${Number(m.retrofit_ceiling_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            if (colKey === 'subfloor_rate')
+                return <td key={colKey} className="p-3 text-sm">{m.subfloor_rate ? `$${Number(m.subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            if (colKey === 'retrofit_subfloor_rate')
+                return <td key={colKey} className="p-3 text-sm">{m.retrofit_subfloor_rate ? `$${Number(m.retrofit_subfloor_rate).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            // --- FIX: Always use formatRValue ---
+            if (colKey === 'rValue')      return <td key={colKey} className="p-3 text-sm">{m.rValue ? formatRValue(m.rValue) : ''}</td>;
+            if (colKey === 'thickness')   return <td key={colKey} className="p-3 text-sm">{m.thickness ? `${m.thickness}mm` : ''}</td>;
+            if (colKey === 'density')     return <td key={colKey} className="p-3 text-sm">{m.density ? `${m.density}kg/m³` : ''}</td>;
+            if (colKey === 'width')       return <td key={colKey} className="p-3 text-sm">{m.width ? `${m.width}mm` : ''}</td>;
+            if (colKey === 'coverage')    return <td key={colKey} className="p-3 text-sm">{m.coverage ? `${m.coverage} ${covUnit}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+            if (colKey === 'costPrice')   return <td key={colKey} className="p-3 text-sm text-red-600 font-medium">{m.costPrice ? `$${Number(m.costPrice).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+            if (colKey === 'sCostUnit')   return <td key={colKey} className="p-3 text-sm font-semibold">{m.sCostUnit ? `$${Number(m.sCostUnit).toFixed(2)}${saleUnit ? `/${saleUnit}` : ''}` : ''}</td>;
+            if (colKey === 's_i_combined')return <td key={colKey} className="p-3 text-sm">{(m.s_i_timber || m.s_i_steel) ? `$${Number(m.s_i_timber || m.s_i_steel || 0).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            if (colKey === 's_i_timber' && !showCombinedSI)
+                return <td key={colKey} className="p-3 text-sm">{m.s_i_timber ? `$${Number(m.s_i_timber).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            if (colKey === 's_i_steel' && !showCombinedSI)
+                return <td key={colKey} className="p-3 text-sm">{m.s_i_steel ? `$${Number(m.s_i_steel).toFixed(2)}${covUnit ? `/${covUnit}` : ''}` : ''}</td>;
+            if (colKey === 'length')      return <td key={colKey} className="p-3 text-sm">{m.length ? `${m.length}mm` : ''}</td>;
+            if (colKey === 'keywords')    return <td key={colKey} className="p-3 text-sm">{Array.isArray(m.keywords) ? m.keywords.join(', ') : m.keywords || ''}</td>;
+            return null;
+        })}
+        <td className="p-3 text-center">
+            <button onClick={() => onEdit(m)} className="text-blue-500 mr-2"><Edit size={18} /></button>
+            <button onClick={() => onDelete(m)} className="text-red-500"><Trash2 size={18} /></button>
+        </td>
+    </tr>
+);
+>>>>>>> Stashed changes
 
 const MaterialsTable = ({
     groupedMaterials,

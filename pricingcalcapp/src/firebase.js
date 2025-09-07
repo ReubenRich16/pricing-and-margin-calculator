@@ -27,7 +27,10 @@ export const getMaterialsCollection    = () => getCollectionRef('materials');
 export const getLabourRatesCollection  = () => getCollectionRef('labourRates');
 export const getCustomersCollection    = () => getCollectionRef('customers');
 
+<<<<<<< Updated upstream
 // --- Improved batch deletion for collections > 500 docs ---
+=======
+>>>>>>> Stashed changes
 export const deleteEntireCollection = async (collectionName) => {
     const collectionRef = getCollectionRef(collectionName);
     if (!collectionRef) {
