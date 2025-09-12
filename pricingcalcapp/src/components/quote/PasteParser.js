@@ -29,6 +29,14 @@ const REGEX = {
 
 // --- PARSING HELPER FUNCTIONS ---
 
+// Splits a raw notes string by various delimiters into an array of clean notes.
+const splitNotes = (notesString) => {
+    if (!notesString) return [];
+    // Regex to split by " -- ", " — ", or " - "
+    const separatorRegex = /\s*--\s*|\s*—\s*|\s*-\s*/;
+    return notesString.split(separatorRegex).map(n => n.trim()).filter(Boolean);
+};
+
 const parseGroupHeader = (line) => {
     const match = line.match(REGEX.GROUP_HEADER);
     if (!match) return null;
@@ -116,7 +124,7 @@ const parseLineItem = (line, currentGroup) => {
             notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
         }
         if (notesContent) {
-            lineItem.notes.push(...notesContent.split(/\s{2,}[-—]\s*/).filter(Boolean).map(n => n.trim()));
+            lineItem.notes.push(...splitNotes(notesContent));
         }
     }
 
@@ -165,7 +173,7 @@ const parseTextToWorksheet = (text) => {
             }
         } else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
             const noteContent = trimmedLine.replace(/^[ —]+/, '');
-            currentLineItem.notes.push(...noteContent.split(/\s{2,}[-—]\s*/).filter(Boolean).map(n => n.trim()));
+            currentLineItem.notes.push(...splitNotes(noteContent));
         } else {
             if (trimmedLine === "Additional Items:") {
                 isExpectingAdditionalItems = true;
