@@ -11,6 +11,43 @@
  * @param {Array} materials - The master list of material objects, used for lookups.
  * @returns {object} A new, aggregated worksheet object.
  */
+
+// --- SORTING LOGIC ---
+const bulkInsulationSortOrder = [
+    "CEILING", "SUSPENDED",
+    "BOX GUTTER",
+    "EXTERNAL WALL", "BOUNDARY",
+    "ADJOINING WALL", "PARTY WALL",
+    "GARAGE TO HOUSE",
+    "INTERNAL WALL",
+    "BETWEEN FLOOR", "CANTILEVER"
+];
+
+const getSortIndex = (description) => {
+    const upperDesc = description.toUpperCase();
+    for (let i = 0; i < bulkInsulationSortOrder.length; i++) {
+        if (upperDesc.includes(bulkInsulationSortOrder[i])) {
+            return i;
+        }
+    }
+    return bulkInsulationSortOrder.length; // Default to last if no match
+};
+
+const sortBulkInsulation = (a, b) => {
+    const indexA = getSortIndex(a.description);
+    const indexB = getSortIndex(b.description);
+
+    if (indexA !== indexB) {
+        return indexA - indexB;
+    }
+
+    // Secondary sort by R-Value (highest to lowest)
+    const rValueA = parseFloat(a.rValue?.replace('R', '')) || 0;
+    const rValueB = parseFloat(b.rValue?.replace('R', '')) || 0;
+    return rValueB - rValueA;
+};
+
+
 export const aggregateWorksheet = (rawWorksheetData, materials) => {
     if (!rawWorksheetData || !rawWorksheetData.groups) {
         return { groups: [] };
@@ -20,18 +57,24 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 1: Group raw line items by a composite key ---
     rawWorksheetData.groups.forEach(group => {
-        const key = `${group.location}|${group.category}`;
+        // Make the key more specific by including the itemType for Rigid Wall/Soffit
+        const key = group.category === 'Rigid Wall/Soffit'
+            ? `${group.location}|${group.category}|${group.itemType}`
+            : `${group.location}|${group.category}`;
+
         if (!aggregatedGroups.has(key)) {
             aggregatedGroups.set(key, {
                 unitNumbers: new Set(),
                 lineItems: [],
-                originalGroup: group, // Keep a reference to the first group of this type
+                sourceGroupIds: new Set(),
+                originalGroup: group,
             });
         }
         const aggGroup = aggregatedGroups.get(key);
         if (group.unitNumber) {
             aggGroup.unitNumbers.add(group.unitNumber);
         }
+        aggGroup.sourceGroupIds.add(group.id);
         aggGroup.lineItems.push(...group.lineItems);
     });
 
@@ -39,7 +82,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 2: Process each aggregated group ---
     for (const [key, groupData] of aggregatedGroups.entries()) {
-        const { unitNumbers, lineItems, originalGroup } = groupData;
+        const { unitNumbers, lineItems, sourceGroupIds, originalGroup } = groupData;
 
         // --- Step 2a: Combine identical line items by summing quantities ---
         const combinedLineItems = new Map();
@@ -59,61 +102,68 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         // --- Step 2b: Special processing for panel items (note grouping and material lookup) ---
         if (originalGroup.category === 'Rigid Wall/Soffit') {
             const notesByRValue = new Map();
-            const itemsWithoutNotes = [];
 
-            // First, find a matching material to generate the note
             processedLineItems.forEach(item => {
-                const matchingMaterial = materials.find(m =>
-                    m.rValue === item.rValue &&
-                    (m.category === 'Rigid Wall/Soffit' || m.category === 'XPS')
-                );
+                // Default material logic
+                const isSoffit = originalGroup.itemType?.toLowerCase().includes('soffit');
+                const isWallRigid = originalGroup.itemType?.toLowerCase().includes('wall panel');
 
+                const matchingMaterial = materials.find(m => {
+                    if (m.rValue !== item.rValue) return false;
+                    if (isSoffit) return m.materialName.includes('K10');
+                    if (isWallRigid) return m.materialName.includes('K12');
+                    return (m.category === 'Rigid Wall/Soffit' || m.category === 'XPS');
+                });
+
+                let finalNotes = item.notes || [];
                 if (matchingMaterial) {
                     const materialNote = `${matchingMaterial.thickness || ''}mm ${matchingMaterial.brand || ''} ${matchingMaterial.materialName || ''} (${matchingMaterial.length || ''}x${matchingMaterial.width || ''}mm)`.trim();
-                    if (!notesByRValue.has(item.rValue)) {
-                        notesByRValue.set(item.rValue, [materialNote]);
+                    // Replace placeholder note with the specific material note
+                    finalNotes = finalNotes.map(note => note.includes('__mm') ? materialNote : note);
+                    if (!finalNotes.includes(materialNote) && !item.notes.some(n => n.includes('__mm'))) {
+                        finalNotes.unshift(materialNote);
                     }
                 }
-                // Keep all original notes as well
-                if (item.notes && item.notes.length > 0) {
-                    const existingNotes = notesByRValue.get(item.rValue) || [];
-                    notesByRValue.set(item.rValue, [...new Set([...existingNotes, ...item.notes])]);
+                
+                if (!notesByRValue.has(item.rValue)) {
+                    notesByRValue.set(item.rValue, new Set());
                 }
+                finalNotes.forEach(note => notesByRValue.get(item.rValue).add(note));
             });
             
-            // Group items by R-Value and attach the relevant notes
             const itemsByRValue = new Map();
             processedLineItems.forEach(item => {
                 if (!itemsByRValue.has(item.rValue)) {
                     itemsByRValue.set(item.rValue, []);
                 }
-                // Clear individual notes as they will be grouped
                 item.notes = []; 
                 itemsByRValue.get(item.rValue).push(item);
             });
 
             processedLineItems = [];
             for (const [rValue, items] of itemsByRValue.entries()) {
-                // Add the items back
                 processedLineItems.push(...items);
-                // Add a "notes" pseudo-item to display the grouped notes
                 if (notesByRValue.has(rValue)) {
                     processedLineItems.push({
                         id: `notes-${rValue}`,
                         isNoteGroup: true,
-                        notes: notesByRValue.get(rValue),
+                        notes: Array.from(notesByRValue.get(rValue)),
                     });
                 }
             }
         }
 
-        // --- Step 2c: Special processing for "Supply Only" items (roll calculation) ---
+        // --- Step 2c: Custom sorting for Bulk Insulation ---
+        if (originalGroup.category === 'Bulk Insulation') {
+            processedLineItems.sort(sortBulkInsulation);
+        }
+
+        // --- Step 2d: Special processing for "Supply Only" items (roll calculation) ---
         processedLineItems.forEach(item => {
             if (item.category === 'Supply Only' || (item.notes && item.notes.some(n => n.toLowerCase().includes('supply only')))) {
                 const matchingMaterial = materials.find(m => {
                     const materialName = m.materialName.toLowerCase();
                     const description = item.description.toLowerCase();
-                    // Simple name matching, can be improved
                     return description.includes(materialName) || materialName.includes(description);
                 });
 
@@ -124,7 +174,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             }
         });
 
-        // --- Step 2d: Construct the final aggregated group ---
+        // --- Step 2e: Construct the final aggregated group ---
         const sortedUnits = Array.from(unitNumbers).sort((a, b) => a - b);
         let unitPrefix = '';
         if (sortedUnits.length > 1) {
@@ -133,10 +183,16 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             unitPrefix = `U${sortedUnits[0]}, `;
         }
 
+        let groupName = `${unitPrefix}${originalGroup.location} – ${originalGroup.itemType || originalGroup.category}`;
+        if (originalGroup.category === 'Supply Only') {
+            groupName = 'Supply Only';
+        }
+
         finalGroups.push({
             id: `agg-${originalGroup.id}`,
-            groupName: `${unitPrefix}${originalGroup.location} – ${originalGroup.itemType || originalGroup.category}`,
+            groupName: groupName,
             lineItems: processedLineItems,
+            sourceGroupIds: Array.from(sourceGroupIds),
         });
     }
 

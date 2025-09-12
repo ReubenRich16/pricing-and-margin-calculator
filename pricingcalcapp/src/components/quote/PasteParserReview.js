@@ -58,10 +58,11 @@ const GroupCard = ({ group, isAggregatedView, onGroupToggle }) => {
                     ) : (
                       <>
                         {'– '}
-                        {item.description} - {item.quantity}{item.unit}
-                        {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
-                        {item.rValue && ` (${item.rValue})`}
+                        {item.description}
                         {item.colorHint && ` (MARKED ${item.colorHint})`}
+                        {item.rValue && ` ${item.rValue}`}
+                        {' – '}{item.quantity}{item.unit}
+                        {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
                       </>
                     )}
                     
@@ -71,11 +72,9 @@ const GroupCard = ({ group, isAggregatedView, onGroupToggle }) => {
                         {item.category && ` [Category: ${item.category}]`}
                       </span>
                     )}
-
-                    {/* Individual notes are now handled by the isNoteGroup block */}
                   </>
                 ) : (
-                  // Render originalText for raw view
+                  // Render originalText for raw view, ensuring notes are always shown
                   <>
                     {item.originalText}
                     <div className="text-muted" style={{ fontSize: '0.8em' }}>

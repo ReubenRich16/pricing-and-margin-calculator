@@ -6,7 +6,7 @@ const mapItemTypeToCategory = (itemType) => {
     if (!itemType) return 'Other';
     const lower = itemType.toLowerCase();
     if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
-    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps')) return 'Rigid Wall/Soffit';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps') || lower.includes('wall panel insulation')) return 'Rigid Wall/Soffit';
     if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
     if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
     if (lower.includes('subfloor')) return 'Subfloor';
@@ -19,6 +19,7 @@ const mapItemTypeToCategory = (itemType) => {
 const REGEX = {
     GROUP_HEADER: /^U(\d+),\s*(.+?)(?:\s*–\s*(.+))?$/i,
     SUPPLY_ONLY_ITEM: /^(?<description>.*?)\s*–\s*(?<area>\d+)m²\s*-\s*SUPPLY ONLY/i,
+    XPS_PANEL: /-\s*_\s*panels\s*of\s*__mm\s*XPS\s*\((?<dims>[\dx]+mm)\)\s*(?<rValue>R[\d.]+)\s*–\s*(?<area>\d+)m²\s*\((?<panelCount>\d+)\)/i,
     LINE_ITEM: /-\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
     DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
     R_VALUE: /R[\d.]+\s*\w*/,
@@ -35,6 +36,22 @@ const splitNotes = (notesString) => {
     // Normalize all dash-like separators to a consistent one, then split.
     const normalized = notesString.replace(/\s*--\s*|\s*—\s*|\s*-\s*/g, ' -- ');
     return normalized.split(' -- ').map(n => n.trim()).filter(Boolean);
+};
+
+const parseXpsPanel = (line) => {
+    const match = line.match(REGEX.XPS_PANEL);
+    if (!match) return null;
+    const { dims, rValue, area, panelCount } = match.groups;
+    return {
+        id: nanoid(),
+        originalText: line,
+        description: `__mm XPS (${dims})`,
+        rValue,
+        quantity: parseFloat(area),
+        unit: 'm²',
+        notes: [`${panelCount} panels`],
+        category: 'Rigid Wall/Soffit',
+    };
 };
 
 const parseGroupHeader = (line) => {
@@ -107,21 +124,8 @@ const parseLineItem = (line, currentGroup) => {
         let notesContent = remainder.trim().replace(/^\s*[-—]\s*/, '');
         const dampCourseMatch = notesContent.match(REGEX.DAMP_COURSE);
         if (dampCourseMatch) {
-            const { width, length } = dampCourseMatch.groups;
-            const lengthValue = parseInt(length, 10);
-            additionalItems.push({
-                id: nanoid(),
-                originalText: dampCourseMatch[0].trim(),
-                description: "Damp Course",
-                specifications: { width, length: lengthValue },
-                quantity: lengthValue,
-                unit: 'LM',
-                colorHint: null,
-                rValue: null,
-                notes: [],
-                location: currentGroup?.location,
-                category: "Consumables",
-            });
+            // Add damp course as a note to the parent item
+            lineItem.notes.push(dampCourseMatch[0].trim());
             notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
         }
         if (notesContent) {
@@ -162,15 +166,21 @@ const parseTextToWorksheet = (text) => {
         }
 
         if (trimmedLine.startsWith('-')) {
-            const parsed = parseLineItem(trimmedLine, currentGroup);
-            if (parsed && currentGroup) {
-                currentLineItem = parsed.lineItem;
+            const xpsPanel = parseXpsPanel(trimmedLine);
+            if (xpsPanel && currentGroup) {
+                currentLineItem = xpsPanel;
                 currentGroup.lineItems.push(currentLineItem);
-                if (parsed.additionalItems.length > 0) {
-                    currentGroup.lineItems.push(...parsed.additionalItems);
+            } else {
+                const parsed = parseLineItem(trimmedLine, currentGroup);
+                if (parsed && currentGroup) {
+                    currentLineItem = parsed.lineItem;
+                    currentGroup.lineItems.push(currentLineItem);
+                    if (parsed.additionalItems.length > 0) {
+                        currentGroup.lineItems.push(...parsed.additionalItems);
+                    }
+                } else if (currentLineItem) {
+                    currentLineItem.notes.push(trimmedLine.replace(/^-+/, '').trim());
                 }
-            } else if (currentLineItem) {
-                currentLineItem.notes.push(trimmedLine.replace(/^-+/, '').trim());
             }
         } else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
             const noteContent = trimmedLine.replace(/^[ —]+/, '');
