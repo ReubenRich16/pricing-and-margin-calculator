@@ -30,6 +30,10 @@ const REGEX = {
 
 // --- PARSING HELPER FUNCTIONS ---
 
+const isLineItem = (line) => {
+    return /–\s*\d+m²/.test(line);
+};
+
 // Splits a raw notes string by various delimiters into an array of clean notes.
 const splitNotes = (notesString) => {
     if (!notesString) return [];
@@ -61,6 +65,9 @@ const parseGroupHeader = (line) => {
     const unitNumber = match[1] ? parseInt(match[1], 10) : null;
     const location = match[2] ? match[2].trim() : line;
     const itemType = match[3] ? match[3].trim() : null;
+
+    // If the line is a group header, it's not a line item
+    if (isLineItem(line)) return null;
 
     return {
         unitNumber,
@@ -130,59 +137,37 @@ const parseLineItem = (line, currentGroup) => {
 
 // --- MAIN PARSING ENGINE ---
 const parseTextToWorksheet = (text) => {
-    const lines = text.replace(/\u00A0/g, ' ').split('\n').filter(line => line.trim() !== '');
+    const lines = text.replace(/\u00A0/g, ' ').split('\n');
     const worksheet = { groups: [] };
     let currentGroup = null;
     let currentLineItem = null;
-    let isExpectingAdditionalItems = false;
 
     for (const line of lines) {
         const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
 
-        if (trimmedLine.startsWith('-') || trimmedLine.startsWith('•') || trimmedLine.startsWith('*')) {
-            const xpsPanel = parseXpsPanel(trimmedLine);
-            if (xpsPanel && currentGroup) {
-                currentLineItem = xpsPanel;
-                currentGroup.lineItems.push(currentLineItem);
-            } else {
-                const parsed = parseLineItem(trimmedLine, currentGroup);
-                if (parsed && currentGroup) {
-                    currentLineItem = parsed.lineItem;
-                    currentGroup.lineItems.push(currentLineItem);
-                    if (parsed.additionalItems.length > 0) {
-                        currentGroup.lineItems.push(...parsed.additionalItems);
-                    }
-                } else if (currentLineItem) {
-                    currentLineItem.notes.push(trimmedLine.replace(/^-+/, '').trim());
-                }
-            }
-} else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
-    const noteContent = trimmedLine.replace(/^[ —-]+/, '');
-    currentLineItem.notes.push(...splitNotes(noteContent));
-} else {
-            if (trimmedLine === "Additional Items:") {
-                isExpectingAdditionalItems = true;
-                continue;
-            }
+        const groupData = parseGroupHeader(trimmedLine);
 
-            const groupData = parseGroupHeader(trimmedLine);
-            let finalGroupName = trimmedLine;
-            if (isExpectingAdditionalItems) {
-                finalGroupName = `Additional Items:\n${trimmedLine}`;
-                isExpectingAdditionalItems = false;
-            }
-
+        if (groupData) {
             currentGroup = {
                 id: nanoid(),
-                groupName: finalGroupName,
-                unitNumber: groupData?.unitNumber || null,
-                location: groupData?.location || trimmedLine,
-                itemType: groupData?.itemType || null,
-                category: groupData?.category || 'Other',
+                groupName: trimmedLine,
+                unitNumber: groupData.unitNumber,
+                location: groupData.location,
+                itemType: groupData.itemType,
+                category: groupData.category,
                 lineItems: [],
             };
             worksheet.groups.push(currentGroup);
             currentLineItem = null;
+        } else if (isLineItem(trimmedLine)) {
+            const parsed = parseLineItem(trimmedLine, currentGroup);
+            if (parsed && currentGroup) {
+                currentLineItem = parsed.lineItem;
+                currentGroup.lineItems.push(currentLineItem);
+            }
+        } else if (currentLineItem) {
+            currentLineItem.notes.push(trimmedLine);
         }
     }
     return worksheet;

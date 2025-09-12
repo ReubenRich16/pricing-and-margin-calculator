@@ -1,30 +1,25 @@
-# Implementation Plan
+# Implementation Plan: Stateful Parser
 
 [Overview]
-This plan outlines the necessary changes to correctly handle "Supply Only" items within the parsing and aggregation engine, ensuring they remain in their original groups while being clearly marked.
+This plan outlines the refactoring of the parsing engine from a stateless, regex-based approach to a more robust, context-aware state machine. This will address the current failures in handling complex and inconsistent quote formats.
 
 [Types]
-No new types will be introduced, but an existing data structure will be modified. The `lineItem` object, created in `PasteParser.js` and used throughout the aggregation and display process, will be updated to include a new boolean flag.
-
-- `lineItem`:
-  - `isSupplyOnly` (boolean, optional): Will be set to `true` if the item is identified as "Supply Only".
+No new types will be introduced. The existing `lineItem` and `group` objects will be used.
 
 [Files]
-This implementation will involve modifications to three key files: `PasteParser.js`, `aggregation.js`, and `PasteParserReview.js`.
+The primary focus of this refactor will be on `src/components/quote/PasteParser.js`. The other files will remain unchanged for now.
 
-- `src/components/quote/PasteParser.js`: The parsing logic will be updated to stop moving "Supply Only" items to a separate group and instead flag them directly on the line item object.
-- `src/utils/aggregation.js`: The aggregation logic will be modified to prevent the creation of a separate "Supply Only" group and to correctly group items based on their new `isSupplyOnly` flag.
-- `src/components/quote/PasteParserReview.js`: The display component will be updated to render a "Supply Only" label for flagged items.
+- `src/components/quote/PasteParser.js`: Will be heavily modified to implement the new state machine and parsing logic.
 
 [Functions]
-Several functions across the three files will be modified to implement the new "Supply Only" handling.
-
+- **New Functions:**
+  - `isLineItem(line)` (in `src/components/quote/PasteParser.js`): A new helper function that will use heuristics (e.g., presence of "m²", R-value) to determine if a line is a line item, regardless of leading characters.
 - **Modified Functions:**
-  - `parseSupplyOnlyItem` (in `src/components/quote/PasteParser.js`): This function will be removed, as its logic will be integrated into `parseLineItem`.
-  - `parseLineItem` (in `src/components/quote/PasteParser.js`): Will be updated to detect "SUPPLY ONLY" text in the line and set the `isSupplyOnly` flag.
-  - `parseTextToWorksheet` (in `src/components/quote/PasteParser.js`): The logic for creating a separate "Supply Only" group will be removed.
-  - `aggregateWorksheet` (in `src/utils/aggregation.js`): The logic for creating a separate "Supply Only" group will be removed, and the item keying logic will be updated to include the `isSupplyOnly` status.
-  - `GroupCard` (in `src/components/quote/PasteParserReview.js`): Will be updated to display a "Supply Only" label next to items where `isSupplyOnly` is `true`.
+  - `parseTextToWorksheet` (in `src/components/quote/PasteParser.js`): This function will be completely refactored to implement the state machine.
+  - `parseGroupHeader` (in `src/components/quote/PasteParser.js`): Will be updated to handle multi-line headers.
+  - `parseLineItem` (in `src/components/quote/PasteParser.js`): Will be updated to work with the new `isLineItem` function.
+- **Removed Functions:**
+  - The existing `REGEX.LINE_ITEM` will be deprecated in favor of the `isLineItem` function.
 
 [Classes]
 No classes will be added, modified, or removed.
@@ -33,10 +28,16 @@ No classes will be added, modified, or removed.
 No new dependencies will be added.
 
 [Testing]
-The primary method of testing will be to use the provided raw text input and verify that the rendered output in the browser matches the desired outcome, specifically ensuring that "Supply Only" items are correctly displayed within their original groups.
+The testing protocol will be as follows:
+1.  For each of the `.md` files in the `public` folder, I will:
+    a.  Launch the browser.
+    b.  Paste the content of the file into the application.
+    c.  Provide the complete **Raw Parsed JSON** output.
+    d.  Provide a screenshot of the final **Aggregated & Matched Output**.
+2.  We will review the results together to ensure they are perfect before moving to the next file.
 
 [Implementation Order]
-1.  Modify `src/components/quote/PasteParser.js` to flag "Supply Only" items instead of moving them.
-2.  Modify `src/utils/aggregation.js` to handle the new `isSupplyOnly` flag during aggregation.
-3.  Modify `src/components/quote/PasteParserReview.js` to display the "Supply Only" status.
-4.  Test the entire flow using the provided raw text to ensure the output is correct.
+1.  Implement the `isLineItem` helper function.
+2.  Refactor the `parseTextToWorksheet` function to use a state machine.
+3.  Update the `parseGroupHeader` and `parseLineItem` functions to work with the new state machine.
+4.  Begin the rigorous testing protocol.
