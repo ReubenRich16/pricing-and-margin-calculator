@@ -18,7 +18,6 @@ const mapItemTypeToCategory = (itemType) => {
 // --- REGEX DEFINITIONS ---
 const REGEX = {
     GROUP_HEADER: /^U(\d+),\s*(.+?)(?:\s*–\s*(.+))?$/i,
-    SUPPLY_ONLY_ITEM: /^(?<description>.*?)\s*–\s*(?<area>\d+)m²\s*-\s*SUPPLY ONLY/i,
     XPS_PANEL: /-\s*_\s*panels\s*of\s*__mm\s*XPS\s*\((?<dims>[\dx]+mm)\)\s*(?<rValue>R[\d.]+)\s*–\s*(?<area>\d+)m²\s*\((?<panelCount>\d+)\)/i,
     LINE_ITEM: /-\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
     DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
@@ -66,24 +65,6 @@ const parseGroupHeader = (line) => {
     };
 };
 
-const parseSupplyOnlyItem = (line) => {
-    const match = line.match(REGEX.SUPPLY_ONLY_ITEM);
-    if (!match) return null;
-    const { description, area } = match.groups;
-    return {
-        id: nanoid(),
-        originalText: line,
-        description: description.trim(),
-        colorHint: null,
-        rValue: null,
-        quantity: parseFloat(area),
-        unit: 'm²',
-        notes: [],
-        location: "Supply Only Items",
-        category: "Supply Only",
-    };
-};
-
 const parseLineItem = (line, currentGroup) => {
     const match = line.match(REGEX.LINE_ITEM);
     if (!match) return null;
@@ -92,6 +73,12 @@ const parseLineItem = (line, currentGroup) => {
     let description = descriptionAndStuff;
     let colorHint = null;
     let rValue = null;
+    let isSupplyOnly = false;
+
+    if (description.toUpperCase().includes('SUPPLY ONLY')) {
+        isSupplyOnly = true;
+        description = description.replace(/-\s*SUPPLY ONLY/i, '').trim();
+    }
 
     const rValueMatch = description.match(REGEX.R_VALUE);
     if (rValueMatch) {
@@ -112,6 +99,7 @@ const parseLineItem = (line, currentGroup) => {
         description: description.trim().replace(/-\s*$/, '').trim(),
         colorHint,
         rValue,
+        isSupplyOnly,
         quantity: parseFloat(area),
         unit: 'm²',
         notes: [],
@@ -145,24 +133,6 @@ const parseTextToWorksheet = (text) => {
 
     for (const line of lines) {
         const trimmedLine = line.trim();
-        const supplyItem = parseSupplyOnlyItem(trimmedLine);
-
-        if (supplyItem) {
-            let supplyGroup = worksheet.groups.find(g => g.groupName === "Supply Only Items");
-            if (!supplyGroup) {
-                supplyGroup = {
-                    id: nanoid(),
-                    groupName: "Supply Only Items",
-                    category: "Supply Only",
-                    lineItems: [],
-                };
-                worksheet.groups.push(supplyGroup);
-            }
-            supplyGroup.lineItems.push(supplyItem);
-            currentGroup = supplyGroup;
-            currentLineItem = null;
-            continue;
-        }
 
         if (trimmedLine.startsWith('-')) {
             const xpsPanel = parseXpsPanel(trimmedLine);

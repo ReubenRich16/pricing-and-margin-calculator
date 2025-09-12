@@ -63,6 +63,7 @@ const GroupCard = ({ group, isAggregatedView, onGroupToggle }) => {
                         {item.rValue && ` ${item.rValue}`}
                         {' – '}{item.quantity}{item.unit}
                         {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
+                        {item.isSupplyOnly && <span className="badge bg-secondary ms-2">Supply Only</span>}
                       </>
                     )}
                     

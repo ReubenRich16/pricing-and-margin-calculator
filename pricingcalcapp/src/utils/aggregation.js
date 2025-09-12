@@ -86,7 +86,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         // --- Step 2a: Combine identical line items by summing quantities ---
         const combinedLineItems = new Map();
         lineItems.forEach(item => {
-            const itemKey = `${item.description}|${item.rValue || ''}|${item.colorHint || ''}`;
+            const itemKey = `${item.description}|${item.rValue || ''}|${item.colorHint || ''}|${item.isSupplyOnly || false}`;
             if (combinedLineItems.has(itemKey)) {
                 const existing = combinedLineItems.get(itemKey);
                 existing.quantity += item.quantity;
@@ -157,7 +157,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
         // --- Step 2d: Special processing for "Supply Only" items (roll calculation) ---
         processedLineItems.forEach(item => {
-            if (item.category === 'Supply Only' || (item.notes && item.notes.some(n => n.toLowerCase().includes('supply only')))) {
+            if (item.isSupplyOnly) {
                 const matchingMaterial = materials.find(m => {
                     const materialName = m.materialName.toLowerCase();
                     const description = item.description.toLowerCase();
@@ -181,9 +181,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         }
 
         let groupName = `${unitPrefix}${originalGroup.location} – ${originalGroup.itemType || originalGroup.category}`;
-        if (originalGroup.category === 'Supply Only') {
-            groupName = 'Supply Only';
-        }
 
         finalGroups.push({
             id: `agg-${originalGroup.id}`,
