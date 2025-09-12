@@ -29,61 +29,71 @@ const GroupCard = ({ group, isAggregatedView, onGroupToggle }) => {
       </div>
       <div className="card-body">
         <ul className="list-group list-group-flush">
-          {group.lineItems.map((item, itemIdx) => (
-            <li 
-              key={item.id || itemIdx} 
-              className="list-group-item"
-              onMouseEnter={() => setHoveredItemId(item.id || itemIdx)}
-              onMouseLeave={() => setHoveredItemId(null)}
-            >
-              {isAggregatedView ? (
-                <>
-                  {item.description === "Damp Course" ? (
-                    `&nbsp;&nbsp;&nbsp;&nbsp;— ${item.originalText}` // Use originalText for Damp Course
-                  ) : (
-                    <>
-                      {'– '}{/* En-dash for other items */}
-                      {item.description} - {item.quantity}{item.unit}
-                      {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
-                      {item.rValue && ` (${item.rValue})`}
-                      {item.colorHint && ` (MARKED ${item.colorHint})`}
-                    </>
-                  )}
-                  
-                  {hoveredItemId === (item.id || itemIdx) && (
-                    <span className="text-muted ml-2">
+          {group.lineItems.map((item, itemIdx) => {
+            // Handle special note groups created by the aggregator
+            if (item.isNoteGroup) {
+              return (
+                <li key={item.id || itemIdx} className="list-group-item border-0 pt-0">
+                  <div className="text-muted d-block">
+                    {item.notes.map((note, noteIdx) => (
+                      <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
+                    ))}
+                  </div>
+                </li>
+              );
+            }
+
+            // Render regular line items
+            return (
+              <li 
+                key={item.id || itemIdx} 
+                className="list-group-item"
+                onMouseEnter={() => setHoveredItemId(item.id || itemIdx)}
+                onMouseLeave={() => setHoveredItemId(null)}
+              >
+                {isAggregatedView ? (
+                  <>
+                    {item.description === "Damp Course" ? (
+                      `&nbsp;&nbsp;&nbsp;&nbsp;— ${item.originalText}`
+                    ) : (
+                      <>
+                        {'– '}
+                        {item.description} - {item.quantity}{item.unit}
+                        {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
+                        {item.rValue && ` (${item.rValue})`}
+                        {item.colorHint && ` (MARKED ${item.colorHint})`}
+                      </>
+                    )}
+                    
+                    {hoveredItemId === (item.id || itemIdx) && (
+                      <span className="text-muted ml-2">
+                        {item.location && ` [Location: ${item.location}]`}
+                        {item.category && ` [Category: ${item.category}]`}
+                      </span>
+                    )}
+
+                    {/* Individual notes are now handled by the isNoteGroup block */}
+                  </>
+                ) : (
+                  // Render originalText for raw view
+                  <>
+                    {item.originalText}
+                    <div className="text-muted" style={{ fontSize: '0.8em' }}>
                       {item.location && ` [Location: ${item.location}]`}
                       {item.category && ` [Category: ${item.category}]`}
-                    </span>
-                  )}
-
-                  {item.notes && item.notes.length > 0 && (
-                    <div className="text-muted d-block"> {/* Changed from small to div */}
-                      {item.notes.map((note, noteIdx) => (
-                        <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
-                      ))}
                     </div>
-                  )}
-                </>
-              ) : (
-                // Render originalText for raw view
-                <>
-                  {item.originalText}
-                  <div className="text-muted" style={{ fontSize: '0.8em' }}>
-                    {item.location && ` [Location: ${item.location}]`}
-                    {item.category && ` [Category: ${item.category}]`}
-                  </div>
-                  {item.notes && item.notes.length > 0 && (
-                    <div className="text-muted d-block"> {/* Changed from small to div */}
-                      {item.notes.map((note, noteIdx) => (
-                        <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </li>
-          ))}
+                    {item.notes && item.notes.length > 0 && (
+                      <div className="text-muted d-block">
+                        {item.notes.map((note, noteIdx) => (
+                          <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
