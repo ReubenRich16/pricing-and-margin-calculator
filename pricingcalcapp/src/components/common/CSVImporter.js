@@ -1,5 +1,6 @@
 // src/components/common/CSVImporter.js
 import React, { useState } from 'react';
+import Papa from 'papaparse';
 import { writeBatch, doc, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -14,38 +15,21 @@ const CSVImporter = ({ isOpen, collectionRef, fieldMappings, onComplete }) => {
 
     if (!isOpen) return null;
 
-    const parseCSVLine = (line) => {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim().replace(/^"|"$/g, ''));
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim().replace(/^"|"$/g, ''));
-        return result;
-    };
-
     const handleFileChange = (e) => {
         const f = e.target.files[0];
         setFile(f);
         setError('');
         if (!f) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                let lines = event.target.result.split(/\r\n|\n/);
-                if (lines[0]?.charCodeAt(0) === 0xFEFF) {
-                    lines[0] = lines[0].substring(1);
+
+        Papa.parse(f, {
+            header: false,
+            preview: 1,
+            complete: (results) => {
+                if (results.errors.length) {
+                    setError('Could not parse CSV headers.');
+                    return;
                 }
-                const parsedHeaders = parseCSVLine(lines[0]).map(h => h.trim());
+                const parsedHeaders = results.data[0].map(h => h.trim());
                 setHeaders(parsedHeaders);
 
                 const defaultMapping = {};
@@ -57,11 +41,11 @@ const CSVImporter = ({ isOpen, collectionRef, fieldMappings, onComplete }) => {
                 });
                 setMapping(defaultMapping);
                 setStep('mapping');
-            } catch (err) {
+            },
+            error: () => {
                 setError('Could not parse CSV headers.');
             }
-        };
-        reader.readAsText(f);
+        });
     };
 
     const handleMappingChange = (csvHeader, mappedHeader) => {
@@ -71,94 +55,90 @@ const CSVImporter = ({ isOpen, collectionRef, fieldMappings, onComplete }) => {
     const handlePreview = async () => {
         setError('');
         setIsProcessing(true);
+
         try {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                let lines = event.target.result.split(/\r\n|\n/);
-                if (lines[0]?.charCodeAt(0) === 0xFEFF) {
-                    lines[0] = lines[0].substring(1);
+            let matchCsvHeader = null;
+            for (const key in fieldMappings) {
+                if (fieldMappings[key].isMatchKey) {
+                    matchCsvHeader = key;
+                    break;
                 }
-                const dataRows = lines.slice(1).filter(l => l.trim());
+            }
 
-                let matchCsvHeader = null;
-                for (const key in fieldMappings) {
-                    if (fieldMappings[key].isMatchKey) {
-                        matchCsvHeader = key;
-                        break;
-                    }
-                }
-
-                if (!matchCsvHeader) {
-                    setError('A field mapping must be marked isMatchKey: true.');
-                    setIsProcessing(false);
-                    return;
-                }
-
-                const matchDbField = fieldMappings[matchCsvHeader].name;
-
-                const existingSnapshot = await getDocs(collectionRef);
-                const existingMap = new Map();
-                existingSnapshot.forEach(d => {
-                    const data = d.data();
-                    if (data && data[matchDbField] !== undefined && data[matchDbField] !== null) {
-                        existingMap.set(String(data[matchDbField]).trim(), d.id);
-                    }
-                });
-
-                const toCreate = [];
-                const toUpdate = [];
-                const toSkip = [];
-
-                for (const line of dataRows) {
-                    const values = parseCSVLine(line);
-                    if (values.length === 1 && values[0] === '') continue;
-
-                    const rowData = {};
-                    Object.keys(fieldMappings).forEach(csvHeader => {
-                        const mappedHeader = mapping[csvHeader];
-                        if (!mappedHeader) return;
-
-                        const idx = headers.indexOf(mappedHeader);
-                        let value = idx >= 0 ? values[idx] : '';
-                        
-                        const config = fieldMappings[csvHeader];
-                        const dbField = config.name;
-
-                        if (config.type === 'number') {
-                            value = parseFloat(String(value).replace(/[$ ,]/g, '')) || 0;
-                        } else if (config.type === 'array') {
-                            value = String(value).split(',').map(s => s.trim()).filter(Boolean);
-                        } else {
-                            value = typeof value === 'string' ? value.trim() : value;
-                        }
-                        rowData[dbField] = value;
-                    });
-
-                    const missingRequired = Object.keys(fieldMappings).filter(csvHeader =>
-                        fieldMappings[csvHeader].required &&
-                        (rowData[fieldMappings[csvHeader].name] === undefined || rowData[fieldMappings[csvHeader].name] === '')
-                    );
-
-                    if (missingRequired.length > 0) {
-                        toSkip.push({ ...rowData, _error: `Missing required fields` });
-                        continue;
-                    }
-
-                    const matchValue = String(rowData[matchDbField] || '').trim();
-                    if (matchValue && existingMap.has(matchValue)) {
-                        toUpdate.push({ id: existingMap.get(matchValue), ...rowData });
-                    } else {
-                        toCreate.push(rowData);
-                    }
-                }
-
-                setPreview({ toCreate, toUpdate, toSkip });
-                setStep('preview');
+            if (!matchCsvHeader) {
+                setError('A field mapping must be marked isMatchKey: true.');
                 setIsProcessing(false);
-            };
-            reader.readAsText(file);
+                return;
+            }
+
+            const matchDbField = fieldMappings[matchCsvHeader].name;
+
+            const existingSnapshot = await getDocs(collectionRef);
+            const existingMap = new Map();
+            existingSnapshot.forEach(d => {
+                const data = d.data();
+                if (data && data[matchDbField] !== undefined && data[matchDbField] !== null) {
+                    existingMap.set(String(data[matchDbField]).trim(), d.id);
+                }
+            });
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const toCreate = [];
+                    const toUpdate = [];
+                    const toSkip = [];
+
+                    for (const row of results.data) {
+                        const rowData = {};
+                        Object.keys(fieldMappings).forEach(csvHeader => {
+                            const mappedHeader = mapping[csvHeader];
+                            if (!mappedHeader || row[mappedHeader] === undefined) return;
+
+                            let value = row[mappedHeader];
+                            const config = fieldMappings[csvHeader];
+                            const dbField = config.name;
+
+                            if (config.type === 'number') {
+                                value = parseFloat(String(value).replace(/[$ ,]/g, '')) || 0;
+                            } else if (config.type === 'array') {
+                                value = String(value).split(',').map(s => s.trim()).filter(Boolean);
+                            } else {
+                                value = typeof value === 'string' ? value.trim() : value;
+                            }
+                            rowData[dbField] = value;
+                        });
+
+                        const missingRequired = Object.keys(fieldMappings).filter(csvHeader =>
+                            fieldMappings[csvHeader].required &&
+                            (rowData[fieldMappings[csvHeader].name] === undefined || rowData[fieldMappings[csvHeader].name] === '')
+                        );
+
+                        if (missingRequired.length > 0) {
+                            toSkip.push({ ...rowData, _error: `Missing required fields` });
+                            continue;
+                        }
+
+                        const matchValue = String(rowData[matchDbField] || '').trim();
+                        if (matchValue && existingMap.has(matchValue)) {
+                            toUpdate.push({ id: existingMap.get(matchValue), ...rowData });
+                        } else {
+                            toCreate.push(rowData);
+                        }
+                    }
+
+                    setPreview({ toCreate, toUpdate, toSkip });
+                    setStep('preview');
+                    setIsProcessing(false);
+                },
+                error: (err) => {
+                    setError('Error parsing CSV for preview: ' + (err.message || err));
+                    setIsProcessing(false);
+                }
+            });
         } catch (err) {
-            setError('Error parsing CSV for preview: ' + (err.message || err));
+            setError('Error preparing for preview: ' + (err.message || err));
             setIsProcessing(false);
         }
     };
