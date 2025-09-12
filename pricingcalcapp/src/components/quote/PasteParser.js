@@ -5,8 +5,9 @@ import { nanoid } from 'nanoid';
 const mapItemTypeToCategory = (itemType) => {
     if (!itemType) return 'Other';
     const lower = itemType.toLowerCase();
+    if (lower.includes('xps')) return 'XPS';
     if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
-    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps') || lower.includes('wall panel insulation') || lower.includes('panels')) return 'Rigid Wall/Soffit';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('wall panel insulation') || lower.includes('panels')) return 'Rigid Wall/Soffit';
     if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
     if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
     if (lower.includes('subfloor')) return 'Subfloor';
@@ -19,7 +20,7 @@ const mapItemTypeToCategory = (itemType) => {
 const REGEX = {
     GROUP_HEADER: /^(?:U(\d+),\s*)?(.+?)(?:\s*–\s*(.+))?$/i,
     XPS_PANEL: /-\s*_\s*panels\s*of\s*__mm\s*XPS\s*\((?<dims>[\dx]+mm)\)\s*(?<rValue>R[\d.]+)\s*–\s*(?<area>\d+)m²\s*\((?<panelCount>\d+)\)/i,
-    LINE_ITEM: /[-•*]\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
+    LINE_ITEM: /[-•*]?\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
     DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
     R_VALUE: /R[\d.]+\s*\w*/,
     COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
@@ -49,7 +50,7 @@ const parseXpsPanel = (line) => {
         quantity: parseFloat(area),
         unit: 'm²',
         notes: [`${panelCount} panels`],
-        category: 'Rigid Wall/Soffit',
+        category: 'XPS',
     };
 };
 

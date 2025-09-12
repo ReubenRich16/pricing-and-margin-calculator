@@ -99,7 +99,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         let processedLineItems = Array.from(combinedLineItems.values());
 
         // --- Step 2b: Special processing for panel items (note grouping and material lookup) ---
-        if (originalGroup.category === 'Rigid Wall/Soffit') {
+        if (originalGroup.category === 'Rigid Wall/Soffit' || originalGroup.category === 'XPS') {
             const notesByRValue = new Map();
 
             processedLineItems.forEach(item => {
@@ -113,13 +113,17 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                     return (m.category === 'Rigid Wall/Soffit' || m.category === 'XPS');
                 });
 
-                let finalNotes = item.notes || [];
+                let finalNotes = item.notes ? [...item.notes] : [];
                 if (matchingMaterial) {
                     const materialNote = `${matchingMaterial.thickness || ''}mm ${matchingMaterial.brand || ''} ${matchingMaterial.materialName || ''} (${matchingMaterial.length || ''}x${matchingMaterial.width || ''}mm)`.trim();
-                    finalNotes = finalNotes.map(note => note.includes('__mm') ? materialNote : note);
-                    if (!finalNotes.includes(materialNote) && !item.notes.some(n => n.includes('__mm'))) {
+                    const mmNoteIndex = finalNotes.findIndex(note => note.includes('__mm'));
+                    if (mmNoteIndex !== -1) {
+                        finalNotes[mmNoteIndex] = materialNote;
+                    } else {
                         finalNotes.unshift(materialNote);
                     }
+                } else if (item.category === 'XPS') {
+                    finalNotes.push('ISOMAX 300');
                 }
                 
                 if (!notesByRValue.has(item.rValue)) {
