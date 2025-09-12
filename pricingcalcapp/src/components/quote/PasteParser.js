@@ -78,7 +78,8 @@ const parseLineItem = (line, currentGroup) => {
 
     const rValueMatch = description.match(REGEX.R_VALUE);
     if (rValueMatch) {
-        rValue = rValueMatch[0].trim();
+        // Remove only "PIR" suffix, leave others like "HD"
+        rValue = rValueMatch[0].trim().replace(/\s*PIR\s*$/, '');
         description = description.replace(REGEX.R_VALUE, '').trim();
     }
 

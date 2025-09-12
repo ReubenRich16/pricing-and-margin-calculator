@@ -1,122 +1,144 @@
-// src/utils/aggregation.js
-
 /**
- * Aggregates line items within a worksheet and combines group headers.
- * This function processes raw parsed worksheet data to:
- * 1. Combine line items with identical description, R-value, color hint, and category by summing their quantities and merging notes.
- * 2. Aggregate group headers that follow a 'U[number], [rest of name]' pattern into 'U[min]-[max], [rest of name]'.
+ * Aggregates a worksheet by combining groups and line items based on specific business rules.
+ * This function processes raw parsed data to:
+ * 1. Aggregate groups by location and category (e.g., 'U1-8, Basement – Soffit panels').
+ * 2. Sum quantities of identical line items.
+ * 3. For panel-type items ('Rigid Wall/Soffit'), group notes for items with the same R-Value.
+ * 4. For panel-type items, look up matching materials to transform generic notes into specific product details.
+ * 5. For 'Supply Only' items, calculate the required number of units (e.g., rolls) based on coverage.
  *
- * @param {object} rawWorksheetData - The raw worksheet object parsed from text.
- * @returns {object} A new worksheet object with aggregated groups and line items.
+ * @param {object} rawWorksheetData - The raw worksheet object from the parser.
+ * @param {Array} materials - The master list of material objects, used for lookups.
+ * @returns {object} A new, aggregated worksheet object.
  */
-export const aggregateWorksheet = (rawWorksheetData) => {
-  console.log("aggregateWorksheet: rawWorksheetData received:", JSON.stringify(rawWorksheetData, null, 2)); // DEBUG
-
-  if (!rawWorksheetData || !rawWorksheetData.groups) {
-    console.log("aggregateWorksheet: Invalid rawWorksheetData, returning empty groups."); // DEBUG
-    return { groups: [] };
-  }
-
-  // Map to store aggregated group data, keyed by the 'location|category|itemType'
-  // Value: { unitNumbers: Set<number>, lineItems: Map<string, AggregatedLineItem>, sourceGroupIds: Set<string>, originalItemType: string }
-  const aggregatedGroupData = new Map();
-
-  // Regex to extract unit number and location from group headers like 'U1, Basement - Soffit panels'
-  const unitRegex = /^U(\d+),\s*(.+?)(?:\s*–\s*(.+))?$/i; // Keep this regex for parsing original group names
-
-  rawWorksheetData.groups.forEach(group => {
-    console.log("Processing group:", group.groupName); // DEBUG
-    const groupNameMatch = group.groupName.match(unitRegex);
-    let unitNumber = null;
-    let location = group.location || group.groupName.trim(); // Use group.location from PasteParser
-    let itemType = group.itemType || null; // Use group.itemType from PasteParser
-    let category = group.category || 'Other'; // Use the category already parsed by PasteParser
-
-    if (groupNameMatch) { // Corrected: was groupMatch
-      unitNumber = parseInt(groupNameMatch[1], 10);
-      // location, itemType, category are already set from group object
+export const aggregateWorksheet = (rawWorksheetData, materials) => {
+    if (!rawWorksheetData || !rawWorksheetData.groups) {
+        return { groups: [] };
     }
 
-    // Use a combination of location, category, and itemType as the key for aggregatedGroupData
-    // This ensures unique aggregation for each specific type of item within a location
-    const aggKey = `${location}|${category}|${itemType || ''}`;
+    const aggregatedGroups = new Map();
 
-    // Ensure a data structure exists for this aggregation key
-    if (!aggregatedGroupData.has(aggKey)) {
-      aggregatedGroupData.set(aggKey, {
-        unitNumbers: new Set(),
-        lineItems: new Map(),
-        sourceGroupIds: new Set(),
-        originalItemType: itemType, // Store the original itemType for group name construction
-      });
-    }
-    const currentAggGroup = aggregatedGroupData.get(aggKey);
-
-    if (unitNumber !== null) {
-      currentAggGroup.unitNumbers.add(unitNumber);
-    }
-    currentAggGroup.sourceGroupIds.add(group.id); // Add the raw group's ID
-
-    group.lineItems.forEach(lineItem => {
-      // Aggregation key for line items remains: description|rValue|colorHint|category
-      const key = `${lineItem.description}|${lineItem.rValue || ''}|${lineItem.colorHint || ''}|${lineItem.category || ''}`;
-      console.log(`    Processing line item: ${lineItem.description}, Key: ${key}`); // DEBUG
-
-      // Use the lineItems map on the current aggregated group
-      if (currentAggGroup.lineItems.has(key)) {
-        const existingItem = currentAggGroup.lineItems.get(key);
-        existingItem.quantity += lineItem.quantity;
-        existingItem.notes = Array.from(new Set([...existingItem.notes, ...lineItem.notes]));
-        console.log(`      Aggregated existing item. New quantity: ${existingItem.quantity}`); // DEBUG
-      } else {
-        // Important: create a copy of the line item before adding it to the map
-        currentAggGroup.lineItems.set(key, { ...lineItem, notes: [...lineItem.notes] });
-        console.log(`      Added new item to group aggregation.`); // DEBUG
-      }
+    // --- Step 1: Group raw line items by a composite key ---
+    rawWorksheetData.groups.forEach(group => {
+        const key = `${group.location}|${group.category}`;
+        if (!aggregatedGroups.has(key)) {
+            aggregatedGroups.set(key, {
+                unitNumbers: new Set(),
+                lineItems: [],
+                originalGroup: group, // Keep a reference to the first group of this type
+            });
+        }
+        const aggGroup = aggregatedGroups.get(key);
+        if (group.unitNumber) {
+            aggGroup.unitNumbers.add(group.unitNumber);
+        }
+        aggGroup.lineItems.push(...group.lineItems);
     });
-  });
 
-  const newGroups = [];
+    const finalGroups = [];
 
-  // Create new aggregated groups
-  aggregatedGroupData.forEach((data, aggKey) => {
-    // Reconstruct the group name based on aggregated units, location, and original item type
-    let newGroupName = '';
-    const [location, category, originalItemType] = aggKey.split('|');
+    // --- Step 2: Process each aggregated group ---
+    for (const [key, groupData] of aggregatedGroups.entries()) {
+        const { unitNumbers, lineItems, originalGroup } = groupData;
 
-    // Add unit numbers to the group name
-    if (data.unitNumbers.size > 0) {
-      const sortedUnits = Array.from(data.unitNumbers).sort((a, b) => a - b);
-      if (sortedUnits.length === 1) {
-        newGroupName = `U${sortedUnits[0]}, `;
-      } else {
-        newGroupName = `U${sortedUnits[0]}-${sortedUnits[sortedUnits.length - 1]}, `;
-      }
+        // --- Step 2a: Combine identical line items by summing quantities ---
+        const combinedLineItems = new Map();
+        lineItems.forEach(item => {
+            const itemKey = `${item.description}|${item.rValue || ''}|${item.colorHint || ''}`;
+            if (combinedLineItems.has(itemKey)) {
+                const existing = combinedLineItems.get(itemKey);
+                existing.quantity += item.quantity;
+                existing.notes = [...new Set([...existing.notes, ...item.notes])];
+            } else {
+                combinedLineItems.set(itemKey, { ...item });
+            }
+        });
+
+        let processedLineItems = Array.from(combinedLineItems.values());
+
+        // --- Step 2b: Special processing for panel items (note grouping and material lookup) ---
+        if (originalGroup.category === 'Rigid Wall/Soffit') {
+            const notesByRValue = new Map();
+            const itemsWithoutNotes = [];
+
+            // First, find a matching material to generate the note
+            processedLineItems.forEach(item => {
+                const matchingMaterial = materials.find(m =>
+                    m.rValue === item.rValue &&
+                    (m.category === 'Rigid Wall/Soffit' || m.category === 'XPS')
+                );
+
+                if (matchingMaterial) {
+                    const materialNote = `${matchingMaterial.thickness || ''}mm ${matchingMaterial.brand || ''} ${matchingMaterial.materialName || ''} (${matchingMaterial.length || ''}x${matchingMaterial.width || ''}mm)`.trim();
+                    if (!notesByRValue.has(item.rValue)) {
+                        notesByRValue.set(item.rValue, [materialNote]);
+                    }
+                }
+                // Keep all original notes as well
+                if (item.notes && item.notes.length > 0) {
+                    const existingNotes = notesByRValue.get(item.rValue) || [];
+                    notesByRValue.set(item.rValue, [...new Set([...existingNotes, ...item.notes])]);
+                }
+            });
+            
+            // Group items by R-Value and attach the relevant notes
+            const itemsByRValue = new Map();
+            processedLineItems.forEach(item => {
+                if (!itemsByRValue.has(item.rValue)) {
+                    itemsByRValue.set(item.rValue, []);
+                }
+                // Clear individual notes as they will be grouped
+                item.notes = []; 
+                itemsByRValue.get(item.rValue).push(item);
+            });
+
+            processedLineItems = [];
+            for (const [rValue, items] of itemsByRValue.entries()) {
+                // Add the items back
+                processedLineItems.push(...items);
+                // Add a "notes" pseudo-item to display the grouped notes
+                if (notesByRValue.has(rValue)) {
+                    processedLineItems.push({
+                        id: `notes-${rValue}`,
+                        isNoteGroup: true,
+                        notes: notesByRValue.get(rValue),
+                    });
+                }
+            }
+        }
+
+        // --- Step 2c: Special processing for "Supply Only" items (roll calculation) ---
+        processedLineItems.forEach(item => {
+            if (item.category === 'Supply Only' || (item.notes && item.notes.some(n => n.toLowerCase().includes('supply only')))) {
+                const matchingMaterial = materials.find(m => {
+                    const materialName = m.materialName.toLowerCase();
+                    const description = item.description.toLowerCase();
+                    // Simple name matching, can be improved
+                    return description.includes(materialName) || materialName.includes(description);
+                });
+
+                if (matchingMaterial && matchingMaterial.coverage > 0) {
+                    const units = Math.ceil(item.quantity / matchingMaterial.coverage);
+                    item.notes.push(`${units} ${matchingMaterial.unit || 'units'}`);
+                }
+            }
+        });
+
+        // --- Step 2d: Construct the final aggregated group ---
+        const sortedUnits = Array.from(unitNumbers).sort((a, b) => a - b);
+        let unitPrefix = '';
+        if (sortedUnits.length > 1) {
+            unitPrefix = `U${sortedUnits[0]}-${sortedUnits[sortedUnits.length - 1]}, `;
+        } else if (sortedUnits.length === 1) {
+            unitPrefix = `U${sortedUnits[0]}, `;
+        }
+
+        finalGroups.push({
+            id: `agg-${originalGroup.id}`,
+            groupName: `${unitPrefix}${originalGroup.location} – ${originalGroup.itemType || originalGroup.category}`,
+            lineItems: processedLineItems,
+        });
     }
 
-    newGroupName += `${location}`; // Add the location (e.g., Basement to Second Floor)
-
-    if (originalItemType && originalItemType !== 'null') { // Add itemType if it exists
-        newGroupName += ` – ${originalItemType}`;
-    } else {
-        // Fallback if itemType was not parsed, use category
-        newGroupName += ` – ${category}`;
-    }
-
-
-    console.log(`Creating new group: ${newGroupName}`); // DEBUG
-    newGroups.push({
-      id: `g-agg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      groupName: newGroupName,
-      lineItems: Array.from(data.lineItems.values()),
-      labourItems: [],
-      sourceGroupIds: Array.from(data.sourceGroupIds),
-    });
-  });
-
-  console.log("aggregateWorksheet: Final newGroups:", JSON.stringify(newGroups, null, 2)); // DEBUG
-  return {
-    ...rawWorksheetData,
-    groups: newGroups,
-  };
+    return { ...rawWorksheetData, groups: finalGroups };
 };

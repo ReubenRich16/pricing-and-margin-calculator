@@ -49,8 +49,9 @@ const Calculator = () => {
     setRawWorksheetData(parsedData);
 
     if (parsedData && materials && materials.length > 0) {
-      const aggregatedData = aggregateWorksheet(parsedData);
-      setAggregatedWorksheetData(aggregatedData); 
+      // Pass the materials list to the aggregation function
+      const aggregatedData = aggregateWorksheet(parsedData, materials);
+      setAggregatedWorksheetData(aggregatedData);
 
       // Initialize groupToggleState: all aggregated groups are ON (true) by default
       const initialToggleState = {};
@@ -92,13 +93,8 @@ const Calculator = () => {
   };
   
   if (materialsLoading || labourLoading) {
-    console.log("Calculator: Loading data..."); // DEBUG
     return <div>Loading materials and labour data...</div>;
-  };
-
-  console.log("Calculator: materials:", materials); // DEBUG
-  console.log("Calculator: labourRates:", labourRates); // DEBUG
-  console.log("Calculator: totals (before QuoteSummary):", totals); // DEBUG
+  }
 
   return (
     <div className="container-fluid mt-4">
