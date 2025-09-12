@@ -6,7 +6,7 @@ const mapItemTypeToCategory = (itemType) => {
     if (!itemType) return 'Other';
     const lower = itemType.toLowerCase();
     if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
-    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps') || lower.includes('wall panel insulation')) return 'Rigid Wall/Soffit';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps') || lower.includes('wall panel insulation') || lower.includes('panels')) return 'Rigid Wall/Soffit';
     if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
     if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
     if (lower.includes('subfloor')) return 'Subfloor';
@@ -17,14 +17,14 @@ const mapItemTypeToCategory = (itemType) => {
 
 // --- REGEX DEFINITIONS ---
 const REGEX = {
-    GROUP_HEADER: /^U(\d+),\s*(.+?)(?:\s*–\s*(.+))?$/i,
+    GROUP_HEADER: /^(?:U(\d+),\s*)?(.+?)(?:\s*–\s*(.+))?$/i,
     XPS_PANEL: /-\s*_\s*panels\s*of\s*__mm\s*XPS\s*\((?<dims>[\dx]+mm)\)\s*(?<rValue>R[\d.]+)\s*–\s*(?<area>\d+)m²\s*\((?<panelCount>\d+)\)/i,
-    LINE_ITEM: /-\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
+    LINE_ITEM: /[-•*]\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
     DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
     R_VALUE: /R[\d.]+\s*\w*/,
     COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
-    NOTE_INDENT_1: /^  —/,
-    NOTE_INDENT_2: /^   /,
+    NOTE_INDENT_1: /^\s*[-—]/,
+    NOTE_INDENT_2: /^\s{2,}/,
 };
 
 // --- PARSING HELPER FUNCTIONS ---
@@ -56,12 +56,16 @@ const parseXpsPanel = (line) => {
 const parseGroupHeader = (line) => {
     const match = line.match(REGEX.GROUP_HEADER);
     if (!match) return null;
+
+    const unitNumber = match[1] ? parseInt(match[1], 10) : null;
+    const location = match[2] ? match[2].trim() : line;
     const itemType = match[3] ? match[3].trim() : null;
+
     return {
-        unitNumber: parseInt(match[1], 10),
-        location: match[2].trim(),
-        itemType: itemType,
-        category: mapItemTypeToCategory(itemType),
+        unitNumber,
+        location,
+        itemType,
+        category: mapItemTypeToCategory(itemType || location),
     };
 };
 
@@ -134,7 +138,7 @@ const parseTextToWorksheet = (text) => {
     for (const line of lines) {
         const trimmedLine = line.trim();
 
-        if (trimmedLine.startsWith('-')) {
+        if (trimmedLine.startsWith('-') || trimmedLine.startsWith('•') || trimmedLine.startsWith('*')) {
             const xpsPanel = parseXpsPanel(trimmedLine);
             if (xpsPanel && currentGroup) {
                 currentLineItem = xpsPanel;
@@ -151,10 +155,10 @@ const parseTextToWorksheet = (text) => {
                     currentLineItem.notes.push(trimmedLine.replace(/^-+/, '').trim());
                 }
             }
-        } else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
-            const noteContent = trimmedLine.replace(/^[ —]+/, '');
-            currentLineItem.notes.push(...splitNotes(noteContent));
-        } else {
+} else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
+    const noteContent = trimmedLine.replace(/^[ —-]+/, '');
+    currentLineItem.notes.push(...splitNotes(noteContent));
+} else {
             if (trimmedLine === "Additional Items:") {
                 isExpectingAdditionalItems = true;
                 continue;
