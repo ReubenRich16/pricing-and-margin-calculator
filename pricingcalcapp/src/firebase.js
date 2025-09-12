@@ -26,6 +26,9 @@ export const getWorksheetsCollection   = () => getCollectionRef('worksheets');
 export const getMaterialsCollection    = () => getCollectionRef('materials');
 export const getLabourRatesCollection  = () => getCollectionRef('labourRates');
 export const getCustomersCollection    = () => getCollectionRef('customers');
+export const getJobsCollection         = () => getCollectionRef('jobs');
+export const getDriversCollection      = () => getCollectionRef('drivers');
+
 
 // --- Improved batch deletion for collections > 500 docs ---
 export const deleteEntireCollection = async (collectionName) => {
@@ -60,3 +63,4 @@ export const deleteEntireCollection = async (collectionName) => {
 };
 
 export { app };
+

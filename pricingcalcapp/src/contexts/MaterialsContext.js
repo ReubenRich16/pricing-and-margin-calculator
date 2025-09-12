@@ -38,6 +38,7 @@ const AuthenticatedMaterialsProvider = ({ children, currentUser }) => {
 
 export const MaterialsProvider = ({ children }) => {
     const { currentUser } = useAuth();
+    console.log("MaterialsProvider: currentUser:", currentUser); // DEBUG
 
     if (currentUser) {
         return <AuthenticatedMaterialsProvider currentUser={currentUser}>{children}</AuthenticatedMaterialsProvider>;

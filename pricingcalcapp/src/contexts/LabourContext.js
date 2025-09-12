@@ -40,6 +40,7 @@ const AuthenticatedLabourProvider = ({ children, currentUser }) => {
 // The main provider gets the user and passes it down as a prop.
 export const LabourProvider = ({ children }) => {
     const { currentUser } = useAuth();
+    console.log("LabourProvider: currentUser:", currentUser); // DEBUG
 
     if (currentUser) {
         return <AuthenticatedLabourProvider currentUser={currentUser}>{children}</AuthenticatedLabourProvider>;

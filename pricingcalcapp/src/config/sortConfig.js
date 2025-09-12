@@ -5,7 +5,7 @@ export const categoryOrder = [
   "Subfloor", "Wall Wrap", "Acoustic Pipe Lagging", "Consumables", 
   "Rigid Wall/Soffit", "XPS", "Labour Add Ons/Other"
 ];
-
+// The order in which brands should be sorted.
 export const brandOrder = [
   "Ecowool", "Earthwool", "Polyester", "Bradford", "Pink Batts", "Autex",
   "James Hardie", "Rockwool", "Kingspan", "Metecno", "Foamex", "ISOMAX", "Other"
@@ -54,9 +54,8 @@ export const materialColumns = [
   { key: 'unit', label: 'Unit' },
   { key: 'density', label: 'Density (kg/m³)', suffix: 'kg/m³' },
   { key: 'costPrice', label: 'Cost/Unit', prefix: '$' },
-  { key: 'sCostUnit', label: 'S Cost/Unit', prefix: '$' },
-  { key: 's_i_timber', label: 'S+I Timber/Coverage Unit', prefix: '$' }, // UPDATED
-  { key: 's_i_steel', label: 'S+I Steel/Coverage Unit', prefix: '$' },   // UPDATED
+  { key: 'sCostUnit', label: 'S Cost/Unit', prefix: '$' }, // S = Supply
+  { key: 's_i_timber', label: 'S+I Timber/Coverage Unit', prefix: '$' }, // S+I = Supply and Install
   { key: 'retrofit_ceiling_rate', label: 'Retrofit (existing ceiling) S+I/Coverage Unit', prefix: '$' },
   { key: 'subfloor_rate', label: 'Subfloor S+I/Coverage Unit', prefix: '$' },
   { key: 'retrofit_subfloor_rate', label: 'Retrofit (Subfloor) S+I/Coverage Unit', prefix: '$' },

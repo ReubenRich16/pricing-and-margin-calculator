@@ -1,17 +1,19 @@
 // src/index.js
-import React from 'react'; //
-import { createRoot } from 'react-dom/client'; //
-import { BrowserRouter as Router } from 'react-router-dom'; //
-import App from './App'; //
-import { AuthProvider } from './contexts/AuthContext'; //
-import { MaterialsProvider } from './contexts/MaterialsContext'; //
-import { LabourProvider } from './contexts/LabourContext'; //
-import { CustomersProvider } from './contexts/CustomersContext'; //
-import { ColorKeywordsProvider } from './contexts/ColorKeywordsContext'; //
-import './index.css'; //
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter as Router } from 'react-router-dom';
+import App from './App';
+import { AuthProvider } from './contexts/AuthContext';
+import { MaterialsProvider } from './contexts/MaterialsContext';
+import { LabourProvider } from './contexts/LabourContext';
+import { CustomersProvider } from './contexts/CustomersContext';
+import { ColorKeywordsProvider } from './contexts/ColorKeywordsContext';
+import { DriversProvider } from './contexts/DriversContext';
+import { JobsProvider } from './contexts/JobsContext';
+import './index.css';
 
-const container = document.getElementById('root'); //
-const root = createRoot(container); //
+const container = document.getElementById('root');
+const root = createRoot(container);
 
 root.render(
   <React.StrictMode>
@@ -21,7 +23,11 @@ root.render(
           <CustomersProvider>
             <MaterialsProvider>
               <LabourProvider>
-                <App />
+                <DriversProvider>
+                  <JobsProvider>
+                    <App />
+                  </JobsProvider>
+                </DriversProvider>
               </LabourProvider>
             </MaterialsProvider>
           </CustomersProvider>
@@ -29,4 +35,5 @@ root.render(
       </AuthProvider>
     </Router>
   </React.StrictMode>
-); //
+);
+

@@ -7,7 +7,8 @@ import MaterialsManager from '../../pages/MaterialsManager';
 import LabourManager from '../../pages/LabourManager';
 import CustomerManager from '../../pages/CustomerManager';
 import Calculator from '../../pages/Calculator';
-import { Briefcase, Wrench, Hammer, Users, LogOut } from 'lucide-react';
+import LogisticsDashboard from '../../pages/LogisticsDashboard';
+import { Briefcase, Wrench, Hammer, Users, LogOut, Truck } from 'lucide-react';
 
 const MainApplication = () => {
     const [view, setView] = useState('dashboard');
@@ -38,6 +39,8 @@ const MainApplication = () => {
                 return <CustomerManager />;
             case 'calculator':
                 return <Calculator worksheet={activeWorksheet} onBack={navigateToDashboard} />;
+            case 'logistics':
+                return <LogisticsDashboard />;
             default:
                 return <Dashboard onEditWorksheet={navigateToCalculator} />;
         }
@@ -75,6 +78,12 @@ const MainApplication = () => {
                                 >
                                     <Users size={16} className="mr-2" />Customers
                                 </button>
+                                <button
+                                    onClick={() => setView('logistics')}
+                                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium ${view === 'logistics' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                                >
+                                    <Truck size={16} className="mr-2" />Logistics
+                                </button>
                             </nav>
                         </div>
                         <div className="flex items-center space-x-4">
@@ -98,3 +107,4 @@ const MainApplication = () => {
 };
 
 export default MainApplication;
+
