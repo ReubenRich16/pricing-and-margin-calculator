@@ -32,9 +32,9 @@ const REGEX = {
 // Splits a raw notes string by various delimiters into an array of clean notes.
 const splitNotes = (notesString) => {
     if (!notesString) return [];
-    // Regex to split by " -- ", " — ", or " - "
-    const separatorRegex = /\s*--\s*|\s*—\s*|\s*-\s*/;
-    return notesString.split(separatorRegex).map(n => n.trim()).filter(Boolean);
+    // Normalize all dash-like separators to a consistent one, then split.
+    const normalized = notesString.replace(/\s*--\s*|\s*—\s*|\s*-\s*/g, ' -- ');
+    return normalized.split(' -- ').map(n => n.trim()).filter(Boolean);
 };
 
 const parseGroupHeader = (line) => {
