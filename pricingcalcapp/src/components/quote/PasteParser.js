@@ -124,7 +124,6 @@ const parseLineItem = (line, currentGroup) => {
         let notesContent = remainder.trim().replace(/^\s*[-—]\s*/, '');
         const dampCourseMatch = notesContent.match(REGEX.DAMP_COURSE);
         if (dampCourseMatch) {
-            // Add damp course as a note to the parent item
             lineItem.notes.push(dampCourseMatch[0].trim());
             notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
         }

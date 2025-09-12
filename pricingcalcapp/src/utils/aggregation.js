@@ -57,7 +57,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 1: Group raw line items by a composite key ---
     rawWorksheetData.groups.forEach(group => {
-        // Make the key more specific by including the itemType for Rigid Wall/Soffit
         const key = group.category === 'Rigid Wall/Soffit'
             ? `${group.location}|${group.category}|${group.itemType}`
             : `${group.location}|${group.category}`;
@@ -104,7 +103,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             const notesByRValue = new Map();
 
             processedLineItems.forEach(item => {
-                // Default material logic
                 const isSoffit = originalGroup.itemType?.toLowerCase().includes('soffit');
                 const isWallRigid = originalGroup.itemType?.toLowerCase().includes('wall panel');
 
@@ -118,7 +116,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                 let finalNotes = item.notes || [];
                 if (matchingMaterial) {
                     const materialNote = `${matchingMaterial.thickness || ''}mm ${matchingMaterial.brand || ''} ${matchingMaterial.materialName || ''} (${matchingMaterial.length || ''}x${matchingMaterial.width || ''}mm)`.trim();
-                    // Replace placeholder note with the specific material note
                     finalNotes = finalNotes.map(note => note.includes('__mm') ? materialNote : note);
                     if (!finalNotes.includes(materialNote) && !item.notes.some(n => n.includes('__mm'))) {
                         finalNotes.unshift(materialNote);
