@@ -1,23 +1,12 @@
-// src/pages/Calculator.js
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import PasteParser from '../components/quote/PasteParser';
 import QuoteSummary from '../components/quote/QuoteSummary';
 import { useMaterials } from '../contexts/MaterialsContext';
 import { useLabour } from '../contexts/LabourContext';
 import { calculateTotals } from '../utils/calculateTotals';
 import { aggregateWorksheet } from '../utils/aggregation';
-import PasteParserReview from '../components/quote/PasteParserReview'; // Import the new component
-
-// Helper function to render worksheet data for display (will be replaced by PasteParserReview)
-const renderWorksheetData = (data) => {
-  if (!data || !data.groups) return <p>No data to display.</p>;
-  
-  return (
-    <pre style={{ background: '#f4f4f4', padding: '1rem', whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
-      {JSON.stringify(data, null, 2)}
-    </pre>
-  );
-};
+import PasteParserReview from '../components/quote/PasteParserReview';
+import { parseWorksheetText } from '../utils/parser';
 
 const Calculator = () => {
   const { materials, loading: materialsLoading } = useMaterials();
@@ -34,30 +23,18 @@ const Calculator = () => {
     gstAmount: 0,
     totalPriceIncGst: 0,
     actualMargin: 0,
-});
-  // New state for group toggles
+  });
   const [groupToggleState, setGroupToggleState] = useState({});
 
-  const handleGroupToggle = (groupId) => {
-    setGroupToggleState(prevState => ({
-      ...prevState,
-      [groupId]: !prevState[groupId] // Flip the boolean value
-    }));
-  };
-
-  const handleDataFromParser = (parsedData) => {
-    setRawWorksheetData(parsedData);
-
-    if (parsedData && materials && materials.length > 0) {
-      // Pass the materials list to the aggregation function
-      const aggregatedData = aggregateWorksheet(parsedData, materials);
+  const reprocessData = useCallback((worksheetData) => {
+    if (worksheetData && materials && materials.length > 0) {
+      const aggregatedData = aggregateWorksheet(worksheetData, materials);
       setAggregatedWorksheetData(aggregatedData);
 
-      // Initialize groupToggleState: all aggregated groups are ON (true) by default
       const initialToggleState = {};
       if (aggregatedData && aggregatedData.groups) {
         aggregatedData.groups.forEach(group => {
-          initialToggleState[group.id] = true; // Default to aggregated view
+          initialToggleState[group.id] = true;
         });
       }
       setGroupToggleState(initialToggleState);
@@ -65,31 +42,55 @@ const Calculator = () => {
       if (aggregatedData) {
         const calculatedTotals = calculateTotals(aggregatedData, materials, labourRates);
         setTotals(calculatedTotals);
-      } else {
-        setTotals({
-            totalMaterialCost: 0,
-            totalLabourCost: 0,
-            totalCostExGst: 0,
-            markupAmount: 0,
-            subtotalExGst: 0,
-            gstAmount: 0,
-            totalPriceIncGst: 0,
-            actualMargin: 0,
-        });
       }
-    } else {
-        setTotals({
-            totalMaterialCost: 0,
-            totalLabourCost: 0,
-            totalCostExGst: 0,
-            markupAmount: 0,
-            subtotalExGst: 0,
-            gstAmount: 0,
-            totalPriceIncGst: 0,
-            actualMargin: 0,
-        });
-        setGroupToggleState({}); // Clear toggle state if no data
     }
+  }, [materials, labourRates]);
+
+  const handleDataFromParser = (parsedData) => {
+    setRawWorksheetData(parsedData);
+    reprocessData(parsedData);
+  };
+
+  const handleItemChange = (itemId, newType) => {
+    const updatedWorksheet = JSON.parse(JSON.stringify(rawWorksheetData));
+    let itemFound = false;
+    for (const group of updatedWorksheet.groups) {
+      for (const item of group.lineItems) {
+        if (item.id === itemId) {
+          item.type = newType;
+          itemFound = true;
+          break;
+        }
+      }
+      if (itemFound) break;
+    }
+    setRawWorksheetData(updatedWorksheet);
+    reprocessData(updatedWorksheet);
+  };
+
+  const handleMergeGroup = (groupId) => {
+    const updatedWorksheet = JSON.parse(JSON.stringify(rawWorksheetData));
+    const groupIndex = updatedWorksheet.groups.findIndex(g => g.id === groupId);
+
+    if (groupIndex > 0) {
+      const currentGroup = updatedWorksheet.groups[groupIndex];
+      const prevGroup = updatedWorksheet.groups[groupIndex - 1];
+      
+      prevGroup.groupName += `\n${currentGroup.groupName}`;
+      prevGroup.lineItems.push(...currentGroup.lineItems);
+      
+      updatedWorksheet.groups.splice(groupIndex, 1);
+      
+      setRawWorksheetData(updatedWorksheet);
+      reprocessData(updatedWorksheet);
+    }
+  };
+
+  const handleGroupToggle = (groupId) => {
+    setGroupToggleState(prevState => ({
+      ...prevState,
+      [groupId]: !prevState[groupId]
+    }));
   };
   
   if (materialsLoading || labourLoading) {
@@ -99,7 +100,6 @@ const Calculator = () => {
   return (
     <div className="container-fluid mt-4">
       <div className="row">
-        {/* Left Column: Input */}
         <div className="col-lg-6">
           <div className="card">
             <div className="card-header">
@@ -109,31 +109,21 @@ const Calculator = () => {
               <PasteParser onParse={handleDataFromParser} />
             </div>
           </div>
-          
-          {/* Raw Parsed Output - for debugging, can be removed later */}
-          <div className="card mt-4">
-            <div className="card-header">
-               <h5 className="card-title mb-0">Raw Parsed Output</h5>
-            </div>
-            <div className="card-body">
-              {renderWorksheetData(rawWorksheetData)}
-            </div>
-          </div>
         </div>
         
-        {/* Right Column: Aggregated Output & Summary */}
         <div className="col-lg-6">
           <div className="card">
             <div className="card-header">
-               <h5 className="card-title mb-0">Aggregated & Matched Output</h5>
+               <h5 className="card-title mb-0">Review and Adjust</h5>
             </div>
             <div className="card-body">
-              {/* Use PasteParserReview to render the groups */}
               <PasteParserReview 
                 rawWorksheetData={rawWorksheetData}
                 aggregatedWorksheetData={aggregatedWorksheetData}
                 groupToggleState={groupToggleState}
                 onGroupToggle={handleGroupToggle}
+                onItemChange={handleItemChange}
+                onMergeGroup={handleMergeGroup}
               />
             </div>
           </div>

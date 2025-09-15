@@ -1,0 +1,165 @@
+import { nanoid } from 'nanoid';
+
+// --- CATEGORY MAPPING HELPER ---
+const mapItemTypeToCategory = (itemType) => {
+    if (!itemType) return 'Other';
+    const lower = itemType.toLowerCase();
+    if (lower.includes('xps')) return 'XPS';
+    if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('wall panel insulation') || lower.includes('panels')) return 'Rigid Wall/Soffit';
+    if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
+    if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
+    if (lower.includes('subfloor')) return 'Subfloor';
+    if (lower.includes('pipe lagging')) return 'Acoustic Pipe Lagging';
+    if (['consumables', 'tape', 'dampcourse', 'strapping', 'staples'].some(c => lower.includes(c))) return 'Consumables';
+    return 'Other';
+};
+
+// --- REGEX DEFINITIONS ---
+const REGEX = {
+    GROUP_HEADER: /^(?:U(\d+),\s*)?(.+?)(?:\s*–\s*(.+))?$/i,
+    LINE_ITEM: /[-•*]?\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
+    DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
+    R_VALUE: /R[\d.]+\s*\w*/,
+    COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
+};
+
+// --- PARSING HELPER FUNCTIONS ---
+
+const isLineItem = (line) => {
+    return /–\s*\d+m²/.test(line);
+};
+
+// Splits a raw notes string by various delimiters into an array of clean notes.
+const splitNotes = (notesString) => {
+    if (!notesString) return [];
+    // Normalize all dash-like separators to a consistent one, then split.
+    const normalized = notesString.replace(/\s*--\s*|\s*—\s*|\s*-\s*/g, ' -- ');
+    return normalized.split(' -- ').map(n => n.trim()).filter(Boolean);
+};
+
+const parseGroupHeader = (line) => {
+    const match = line.match(REGEX.GROUP_HEADER);
+    if (!match) return null;
+
+    const unitNumber = match[1] ? parseInt(match[1], 10) : null;
+    const location = match[2] ? match[2].trim() : line;
+    const itemType = match[3] ? match[3].trim() : null;
+
+    // If the line is a group header, it's not a line item
+    if (isLineItem(line)) return null;
+
+    return {
+        unitNumber,
+        location,
+        itemType,
+        category: mapItemTypeToCategory(itemType || location),
+    };
+};
+
+const parseLineItem = (line, currentGroup) => {
+    const match = line.match(REGEX.LINE_ITEM);
+    if (!match) return null;
+
+    let { descriptionAndStuff, area, remainder } = match.groups;
+    let description = descriptionAndStuff;
+    let colorHint = null;
+    let rValue = null;
+    let isSupplyOnly = false;
+
+    if (description.toUpperCase().includes('SUPPLY ONLY')) {
+        isSupplyOnly = true;
+        description = description.replace(/-\s*SUPPLY ONLY/i, '').trim();
+    }
+
+    const rValueMatch = description.match(REGEX.R_VALUE);
+    if (rValueMatch) {
+        // Remove only "PIR" suffix, leave others like "HD"
+        rValue = rValueMatch[0].trim().replace(/\s*PIR\s*$/, '');
+        description = description.replace(REGEX.R_VALUE, '').trim();
+    }
+
+    const colorMatch = description.match(REGEX.COLOR_HINT);
+    if (colorMatch) {
+        colorHint = colorMatch[1].trim();
+        description = description.replace(colorMatch[0], '').trim();
+    }
+
+    const lineItem = {
+        id: nanoid(),
+        type: 'LINE_ITEM',
+        confidence: 'high',
+        originalText: line,
+        description: description.trim().replace(/-\s*$/, '').trim(),
+        colorHint,
+        rValue,
+        isSupplyOnly,
+        quantity: parseFloat(area),
+        unit: 'm²',
+        notes: [],
+        location: currentGroup?.location || null,
+        category: currentGroup?.category || null,
+    };
+
+    if (remainder && remainder.trim()) {
+        let notesContent = remainder.trim().replace(/^\s*[-—]\s*/, '');
+        const dampCourseMatch = notesContent.match(REGEX.DAMP_COURSE);
+        if (dampCourseMatch) {
+            lineItem.notes.push(dampCourseMatch[0].trim());
+            notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
+        }
+        if (notesContent) {
+            lineItem.notes.push(...splitNotes(notesContent));
+        }
+    }
+
+    return { lineItem };
+};
+
+// --- MAIN PARSING ENGINE ---
+export const parseWorksheetText = (text) => {
+    const lines = text.replace(/\u00A0/g, ' ').split('\n');
+    const worksheet = { groups: [] };
+    let currentGroup = null;
+    let currentLineItem = null;
+
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        const groupData = parseGroupHeader(trimmedLine);
+
+        if (groupData) {
+            currentGroup = {
+                id: nanoid(),
+                type: 'GROUP_HEADER',
+                groupName: trimmedLine,
+                unitNumber: groupData.unitNumber,
+                location: groupData.location,
+                itemType: groupData.itemType,
+                category: groupData.category,
+                lineItems: [],
+            };
+            worksheet.groups.push(currentGroup);
+            currentLineItem = null;
+        } else if (isLineItem(trimmedLine)) {
+            const parsed = parseLineItem(trimmedLine, currentGroup);
+            if (parsed && currentGroup) {
+                currentLineItem = parsed.lineItem;
+                currentGroup.lineItems.push(currentLineItem);
+            }
+        } else if (currentLineItem) {
+            currentLineItem.notes.push(trimmedLine);
+        } else if (currentGroup) {
+            // This is likely a note that couldn't be parsed as a line item.
+            currentGroup.lineItems.push({
+                id: nanoid(),
+                type: 'NOTE',
+                confidence: 'low',
+                originalText: trimmedLine,
+                notes: [],
+            });
+        }
+    }
+    return worksheet;
+};
