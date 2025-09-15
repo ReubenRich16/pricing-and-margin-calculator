@@ -1,0 +1,324 @@
+___________________________
+80 John St (ALL RAW)
+U1, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 73m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 4m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 90m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 139m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 75m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 49m²
+- GARAGE TO HOUSE WALL BATTS (MARKED ORANGE) R2.5HD – 24m²
+U1, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 40m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U1, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 13m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U2, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 6m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U2, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 45m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U2, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 9m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U3, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 4m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U3, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 44m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U3, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 9m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U4, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 4m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U4, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 44m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U4, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 10m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U5, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 3m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U5, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 45m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U5, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 10m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U6, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 3m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U6, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 45m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U6, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 11m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U7, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 2m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U7, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 44m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U7, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 23m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U8, Basement to Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 67m²
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 7m²
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 93m²
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 2m²
+- EXTERNAL BOUNDARY WALL BATTS (MARKED LIGHT PINK) R2.5HD – 62m²
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 82m²
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 74m²
+U8, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 PIR – 65m²   - __mm PIR (2400x1200mm)
+- Priced as install strictly before other trades/services   - Price estimate only; site check required to confirm m², including any band beams
+U8, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 PIR – 20m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 PIR – 15m²
+- __mm PIR (2400x1200mm)   - Priced as install strictly before other trades/services
+U1, Second Floor – Wall wrap
+- BRANE VHP – 84m²
+U1, First Floor – Wall wrap
+- BRANE VHP – 123m²
+U1, Ground Floor – Wall wrap
+- BRANE VHP – 76m²   - Includes damp course – 300MM (23LM)
+U1, Basement – Wall wrap
+BRANE VHP – 36m²  - SUPPLY ONLY; Delivery included
+U2, Second Floor – Wall wrap
+- BRANE VHP – 42m²
+U2, First Floor – Wall wrap
+- BRANE VHP – 54m²
+U2, Ground Floor – Wall wrap
+- BRANE VHP – 25m²   - Includes damp course – 300MM (15LM)
+U2, Basement – Wall wrap
+BRANE VHP – 8m²  - SUPPLY ONLY; Delivery included
+U3, Second Floor – Wall wrap
+- BRANE VHP – 52m²
+U3, First Floor – Wall wrap
+- BRANE VHP – 52m²
+U3, Ground Floor – Wall wrap
+- BRANE VHP – 17m²   - Includes damp course – 300MM (12LM)
+U3, Basement – Wall wrap
+BRANE VHP – 6m²  - SUPPLY ONLY; Delivery included
+U4, Second Floor – Wall wrap
+- BRANE VHP – 41m²
+U4, First Floor – Wall wrap
+- BRANE VHP – 52m²
+U4, Ground Floor – Wall wrap
+- BRANE VHP – 17m²   - Includes damp course – 300MM (12LM)
+U4, Basement – Wall wrap
+BRANE VHP – 6m²  - SUPPLY ONLY; Delivery included
+U5, Second Floor – Wall wrap
+- BRANE VHP – 41m²
+U5, First Floor – Wall wrap
+- BRANE VHP – 54m²
+U5, Ground Floor – Wall wrap
+- BRANE VHP – 17m²   - Includes damp course – 300MM (12LM)
+U5, Basement – Wall wrap
+BRANE VHP – 4m²  - SUPPLY ONLY; Delivery included
+U6, Second Floor – Wall wrap
+- BRANE VHP – 41m²
+U6, First Floor – Wall wrap
+- BRANE VHP – 54m²
+U6, Ground Floor – Wall wrap
+- BRANE VHP – 17m²   - Includes damp course – 300MM (12LM)
+U6, Basement – Wall wrap
+BRANE VHP – 4m²  - SUPPLY ONLY; Delivery included
+U7, Second Floor – Wall wrap
+- BRANE VHP – 41m²
+U7, First Floor – Wall wrap
+- BRANE VHP – 52m²
+U7, Ground Floor – Wall wrap
+- BRANE VHP – 17m²   - Includes damp course – 300MM (12LM)
+U7, Basement – Wall wrap
+BRANE VHP – 3m²  - SUPPLY ONLY; Delivery included
+U8, Second Floor – Wall wrap
+- BRANE VHP – 73m²
+U8, First Floor – Wall wrap
+- BRANE VHP – 100m²
+U8, Ground Floor – Wall wrap
+- BRANE VHP – 117m²   - Includes damp course – 300MM (32LM)
+U8, Basement – Wall wrap
+BRANE VHP – 3m²  - SUPPLY ONLY; Delivery included
+Additional Items:
+U1, Slab on Ground - Panels
+- _ panels of __mm XPS (2400x600mm) R2.3 – 20m² (24)
+- SUPPLY ONLY item; Delivery included
+- Calculated area assumes insulation to tops of pads only
+___________________________
+80 John St - PROPER
+U1, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 73m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 4m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 90m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 139m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 75m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 49m²  
+- GARAGE TO HOUSE WALL BATTS (MARKED ORANGE) R2.5HD – 24m²
+U1, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 13m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U2, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 6m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U2, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 9m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U3, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 4m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U3, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 9m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U4, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 4m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U4, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 10m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U5, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 3m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U5, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 10m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U6, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 50m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 79m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 3m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U6, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 11m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U7, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 49m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 3m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 44m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 2m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 162m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 38m²
+U7, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 23m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U8, Basement-Second Floor – Ceiling & wall bulk insulation
+- ROOF CEILING BATTS (MARKED RED) R5.0 – 67m²  
+- ROOF CEILING BATTS TO UNDER BOX GUTTER (MARKED TEAL) R2.5 – 7m²  
+- BETWEEN FLOOR BATTS (MARKED GREEN) R2.5 – 78m²  
+- EXTERNAL WALL BATTS (MARKED BLUE) R2.5HD – 93m²  
+- EXTERNAL WALL BATTS TO GARAGE (MARKED BROWN) R2.5HD – 2m²  
+- EXTERNAL BOUNDARY WALL BATTS (MARKED LIGHT PINK) R2.5HD – 62m²  
+- PARTY WALL BATTS (MARKED PINK) R2.5HD – 82m²  
+- INTERNAL WALL BATTS (MARKED YELLOW) R2.5HD – 74m²
+U8, Basement – Wall panel insulation
+- EXTERNAL WALL RIGID TO GARAGE (MARKED SKY BLUE) R1.75 – 20m²  
+- GARAGE TO HOUSE WALL RIGID (MARKED PURPLE) R1.75 – 15m²
+- 40mm Kingspan Kooltherm K12 (2400x1200mm)  
+- Priced as install strictly before other trades/services
+U1-8, Basement – Soffit panels
+- SUSPENDED CONCRETE SOFFIT PANELS (MARKED MOSS GREEN) R2.3 – 372m²  
+- 50mm Kingspan Kooltherm K10 G2 (2400x1200mm)  
+   - Priced as install strictly before other trades/services  
+   - Price estimate only; site check required to confirm m², including any band beams
+U1-8, Second Floor – Wall wrap
+- BRANE VHP – 415m²
+U1-8, First Floor – Wall wrap
+- BRANE VHP – 541m²
+U1-8, Ground Floor – Wall wrap
+- BRANE VHP – 303m²  
+- Includes damp course – 300MM (130LM)
+U1-8, Basement – Wall wrap
+- BRANE VHP – 70m² – 2 rolls  
+- SUPPLY ONLY; Delivery included
+Additional Items:
+U1, Slab on Ground – Panels
+- 14 panels of 80mm XPS (2400x600mm) R2.4 – 20m² (24)
+- SUPPLY ONLY item; Delivery included  
+- Calculated area assumes insulation to tops of pads only

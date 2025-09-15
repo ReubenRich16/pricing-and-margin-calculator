@@ -1,16 +1,7 @@
 /**
  * Aggregates a worksheet by combining groups and line items based on specific business rules.
- * This function processes raw parsed data to:
- * 1. Aggregate groups by location and category (e.g., 'U1-8, Basement – Soffit panels').
- * 2. Sum quantities of identical line items.
- * 3. For panel-type items ('Rigid Wall/Soffit'), group notes for items with the same R-Value.
- * 4. For panel-type items, look up matching materials to transform generic notes into specific product details.
- * 5. For 'Supply Only' items, calculate the required number of units (e.g., rolls) based on coverage.
- *
- * @param {object} rawWorksheetData - The raw worksheet object from the parser.
- * @param {Array} materials - The master list of material objects, used for lookups.
- * @returns {object} A new, aggregated worksheet object.
  */
+import { nanoid } from 'nanoid';
 
 // --- SORTING LOGIC ---
 const bulkInsulationSortOrder = [
@@ -47,6 +38,10 @@ const sortBulkInsulation = (a, b) => {
     return rValueB - rValueA;
 };
 
+const parseUnitNumber = (groupName) => {
+    const match = groupName.match(/^U(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+}
 
 export const aggregateWorksheet = (rawWorksheetData, materials) => {
     if (!rawWorksheetData || !rawWorksheetData.groups) {
@@ -57,9 +52,8 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 1: Group raw line items by a composite key ---
     rawWorksheetData.groups.forEach(group => {
-        const key = group.category === 'Rigid Wall/Soffit'
-            ? `${group.location}|${group.category}|${group.itemType}`
-            : `${group.location}|${group.category}`;
+        const unitNumber = parseUnitNumber(group.groupName);
+        const key = unitNumber ? `${group.location}|${group.itemType}` : group.groupName;
 
         if (!aggregatedGroups.has(key)) {
             aggregatedGroups.set(key, {
@@ -70,8 +64,8 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             });
         }
         const aggGroup = aggregatedGroups.get(key);
-        if (group.unitNumber) {
-            aggGroup.unitNumbers.add(group.unitNumber);
+        if (unitNumber) {
+            aggGroup.unitNumbers.add(unitNumber);
         }
         aggGroup.sourceGroupIds.add(group.id);
         aggGroup.lineItems.push(...group.lineItems);
@@ -99,10 +93,12 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         let processedLineItems = Array.from(combinedLineItems.values());
 
         // --- Step 2b: Special processing for panel items (note grouping and material lookup) ---
-        if (originalGroup.category === 'Rigid Wall/Soffit' || originalGroup.category === 'XPS') {
+        const category = processedLineItems[0]?.category || originalGroup.category;
+        if (category === 'Rigid Wall/Soffit' || category === 'XPS') {
             const notesByRValue = new Map();
 
             processedLineItems.forEach(item => {
+                const itemCategory = item.category || originalGroup.category;
                 const isSoffit = originalGroup.itemType?.toLowerCase().includes('soffit');
                 const isWallRigid = originalGroup.itemType?.toLowerCase().includes('wall panel');
 
@@ -110,7 +106,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                     if (m.rValue !== item.rValue) return false;
                     if (isSoffit) return m.materialName.includes('K10');
                     if (isWallRigid) return m.materialName.includes('K12');
-                    return (m.category === 'Rigid Wall/Soffit' || m.category === 'XPS');
+                    return (m.category === itemCategory);
                 });
 
                 let finalNotes = item.notes ? [...item.notes] : [];
@@ -122,7 +118,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                     } else {
                         finalNotes.unshift(materialNote);
                     }
-                } else if (item.category === 'XPS') {
+                } else if (itemCategory === 'XPS') {
                     finalNotes.push('ISOMAX 300');
                 }
                 
@@ -143,14 +139,14 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
             processedLineItems = [];
             for (const [rValue, items] of itemsByRValue.entries()) {
-                processedLineItems.push(...items);
                 if (notesByRValue.has(rValue)) {
-                    processedLineItems.push({
-                        id: `notes-${rValue}`,
-                        isNoteGroup: true,
-                        notes: Array.from(notesByRValue.get(rValue)),
-                    });
+                    const allNotes = Array.from(notesByRValue.get(rValue));
+                    // Attach all notes to the last item in the group
+                    if (items.length > 0) {
+                        items[items.length - 1].notes.push(...allNotes);
+                    }
                 }
+                processedLineItems.push(...items);
             }
         }
 
@@ -159,7 +155,21 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             processedLineItems.sort(sortBulkInsulation);
         }
 
-        // --- Step 2d: Special processing for "Supply Only" items (roll calculation) ---
+        // --- Step 2d: Consolidate damp course notes ---
+        processedLineItems.forEach(item => {
+            const dampCourseNotes = item.notes.filter(note => note.toLowerCase().includes('damp course'));
+            if (dampCourseNotes.length > 1) {
+                const totalLength = dampCourseNotes.reduce((sum, note) => {
+                    const match = note.match(/\((\d+)LM\)/i);
+                    return sum + (match ? parseInt(match[1], 10) : 0);
+                }, 0);
+
+                const otherNotes = item.notes.filter(note => !note.toLowerCase().includes('damp course'));
+                item.notes = [...otherNotes, `Includes damp course – 300MM (${totalLength}LM)`];
+            }
+        });
+
+        // --- Step 2e: Special processing for "Supply Only" items (roll calculation) ---
         processedLineItems.forEach(item => {
             if (item.isSupplyOnly) {
                 const matchingMaterial = materials.find(m => {
@@ -175,7 +185,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             }
         });
 
-        // --- Step 2e: Construct the final aggregated group ---
+        // --- Step 2f: Construct the final aggregated group ---
         const sortedUnits = Array.from(unitNumbers).sort((a, b) => a - b);
         let unitPrefix = '';
         if (sortedUnits.length > 1) {
@@ -184,14 +194,16 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
             unitPrefix = `U${sortedUnits[0]}, `;
         }
 
-        let groupName = `${unitPrefix}${originalGroup.location} – ${originalGroup.itemType || originalGroup.category}`;
+        const groupName = unitPrefix ? `${unitPrefix}${originalGroup.location}${originalGroup.itemType ? ` – ${originalGroup.itemType}` : ''}` : originalGroup.groupName;
 
-        finalGroups.push({
-            id: `agg-${originalGroup.id}`,
-            groupName: groupName,
-            lineItems: processedLineItems,
-            sourceGroupIds: Array.from(sourceGroupIds),
-        });
+        if (processedLineItems.length > 0) {
+            finalGroups.push({
+                id: `agg-${nanoid()}`,
+                groupName: groupName,
+                lineItems: processedLineItems,
+                sourceGroupIds: Array.from(sourceGroupIds),
+            });
+        }
     }
 
     return { ...rawWorksheetData, groups: finalGroups };

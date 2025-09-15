@@ -1,12 +1,14 @@
 import React from 'react';
 import { parseWorksheetText } from '../../utils/parser';
+import { aggregateWorksheet } from '../../utils/aggregation';
 
-const PasteParser = ({ onParse }) => {
+const PasteParser = ({ onParse, materials }) => {
     const [text, setText] = React.useState('');
 
     const handleParse = () => {
         const rawWorksheetData = parseWorksheetText(text);
-        onParse(rawWorksheetData);
+        const aggregatedData = aggregateWorksheet(rawWorksheetData, materials);
+        onParse(aggregatedData);
     };
 
     return (
@@ -18,7 +20,7 @@ const PasteParser = ({ onParse }) => {
                 style={{ width: '100%' }}
                 placeholder="Paste your unformatted scope of works here..."
             />
-            <button onClick={handleParse} style={{ marginTop: '10px' }}>
+            <button onClick={handleParse} className="btn btn-primary mt-3">
                 Parse and Generate Quote
             </button>
         </div>

@@ -28,7 +28,14 @@ const Calculator = () => {
 
   const reprocessData = useCallback((worksheetData) => {
     if (worksheetData && materials && materials.length > 0) {
+      console.log('--- Raw Parsed Data ---');
+      console.log(JSON.stringify(worksheetData, null, 2));
+
       const aggregatedData = aggregateWorksheet(worksheetData, materials);
+      
+      console.log('--- Aggregated Data ---');
+      console.log(JSON.stringify(aggregatedData, null, 2));
+
       setAggregatedWorksheetData(aggregatedData);
 
       const initialToggleState = {};
@@ -51,21 +58,28 @@ const Calculator = () => {
     reprocessData(parsedData);
   };
 
-  const handleItemChange = (itemId, newType) => {
+  const handleItemChange = (itemId, changes) => {
     const updatedWorksheet = JSON.parse(JSON.stringify(rawWorksheetData));
     let itemFound = false;
     for (const group of updatedWorksheet.groups) {
       for (const item of group.lineItems) {
         if (item.id === itemId) {
-          item.type = newType;
+          Object.assign(item, changes);
           itemFound = true;
           break;
         }
       }
       if (itemFound) break;
     }
-    setRawWorksheetData(updatedWorksheet);
-    reprocessData(updatedWorksheet);
+
+    const updatedText = updatedWorksheet.groups.map(g => {
+      const items = g.lineItems.map(i => i.originalText).join('\n');
+      return `${g.groupName}\n${items}`;
+    }).join('\n\n');
+    
+    const newParsedData = parseWorksheetText(updatedText);
+    setRawWorksheetData(newParsedData);
+    reprocessData(newParsedData);
   };
 
   const handleMergeGroup = (groupId) => {
@@ -100,21 +114,21 @@ const Calculator = () => {
   return (
     <div className="container-fluid mt-4">
       <div className="row">
-        <div className="col-lg-6">
-          <div className="card">
-            <div className="card-header">
-              <h5 className="card-title mb-0">Paste Scope of Works</h5>
+        <div className="col-lg-4 mb-4">
+          <div className="card shadow-sm">
+            <div className="card-header bg-light border-bottom">
+              <h5 className="card-title mb-0 text-dark">Paste Scope of Works</h5>
             </div>
             <div className="card-body">
-              <PasteParser onParse={handleDataFromParser} />
+              <PasteParser onParse={handleDataFromParser} materials={materials} />
             </div>
           </div>
         </div>
         
-        <div className="col-lg-6">
-          <div className="card">
-            <div className="card-header">
-               <h5 className="card-title mb-0">Review and Adjust</h5>
+        <div className="col-lg-8 mb-4">
+          <div className="card shadow-sm">
+            <div className="card-header bg-light border-bottom">
+               <h5 className="card-title mb-0 text-dark">Review and Adjust</h5>
             </div>
             <div className="card-body">
               <PasteParserReview 
@@ -127,7 +141,11 @@ const Calculator = () => {
               />
             </div>
           </div>
-          <QuoteSummary calculations={totals} />
+          <div className="card shadow-sm mt-4">
+            <div className="card-body">
+              <QuoteSummary calculations={totals} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

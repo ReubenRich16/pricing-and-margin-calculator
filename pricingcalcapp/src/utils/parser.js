@@ -17,9 +17,10 @@ const mapItemTypeToCategory = (itemType) => {
 
 // --- REGEX DEFINITIONS ---
 const REGEX = {
-    GROUP_HEADER: /^(?:U(\d+),\s*)?(.+?)(?:\s*–\s*(.+))?$/i,
-    LINE_ITEM: /[-•*]?\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
-    DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
+    GROUP_HEADER: /^(?!\s*-|\s{2,}).+$/,
+    LINE_ITEM: /[-•*]?\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<quantity>\d+)(?<unit>m²|LM)(?<remainder>.*)/i,
+    IMPLIED_LINE_ITEM: /^(?<descriptionAndStuff>.+?)\s*–\s*(?<quantity>\d+)(?<unit>m²|LM)(?<remainder>.*)/i,
+    NOTE_PROMOTION: /(?<description>.+?)\s*–\s*(?<width>\d+mm)?\s*\((?<quantity>\d+)(?<unit>LM)\)/i,
     R_VALUE: /R[\d.]+\s*\w*/,
     COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
 };
@@ -27,41 +28,22 @@ const REGEX = {
 // --- PARSING HELPER FUNCTIONS ---
 
 const isLineItem = (line) => {
-    return /–\s*\d+m²/.test(line);
+    return REGEX.LINE_ITEM.test(line) || REGEX.IMPLIED_LINE_ITEM.test(line);
 };
 
-// Splits a raw notes string by various delimiters into an array of clean notes.
 const splitNotes = (notesString) => {
     if (!notesString) return [];
-    // Normalize all dash-like separators to a consistent one, then split.
-    const normalized = notesString.replace(/\s*--\s*|\s*—\s*|\s*-\s*/g, ' -- ');
-    return normalized.split(' -- ').map(n => n.trim()).filter(Boolean);
+    // Split by various dash formats, then clean up the resulting array.
+    return notesString.split(/\s*--\s*|\s*—\s*|\s*-\s*/)
+        .map(n => n.trim())
+        .filter(Boolean);
 };
 
-const parseGroupHeader = (line) => {
-    const match = line.match(REGEX.GROUP_HEADER);
+const parseLineItem = (line, currentGroup, isImplied = false) => {
+    const match = line.match(isImplied ? REGEX.IMPLIED_LINE_ITEM : REGEX.LINE_ITEM);
     if (!match) return null;
 
-    const unitNumber = match[1] ? parseInt(match[1], 10) : null;
-    const location = match[2] ? match[2].trim() : line;
-    const itemType = match[3] ? match[3].trim() : null;
-
-    // If the line is a group header, it's not a line item
-    if (isLineItem(line)) return null;
-
-    return {
-        unitNumber,
-        location,
-        itemType,
-        category: mapItemTypeToCategory(itemType || location),
-    };
-};
-
-const parseLineItem = (line, currentGroup) => {
-    const match = line.match(REGEX.LINE_ITEM);
-    if (!match) return null;
-
-    let { descriptionAndStuff, area, remainder } = match.groups;
+    let { descriptionAndStuff, quantity, unit, remainder } = match.groups;
     let description = descriptionAndStuff;
     let colorHint = null;
     let rValue = null;
@@ -74,7 +56,6 @@ const parseLineItem = (line, currentGroup) => {
 
     const rValueMatch = description.match(REGEX.R_VALUE);
     if (rValueMatch) {
-        // Remove only "PIR" suffix, leave others like "HD"
         rValue = rValueMatch[0].trim().replace(/\s*PIR\s*$/, '');
         description = description.replace(REGEX.R_VALUE, '').trim();
     }
@@ -85,6 +66,8 @@ const parseLineItem = (line, currentGroup) => {
         description = description.replace(colorMatch[0], '').trim();
     }
 
+    const category = description.toLowerCase().includes('xps') ? 'XPS' : (currentGroup?.category || null);
+
     const lineItem = {
         id: nanoid(),
         type: 'LINE_ITEM',
@@ -94,23 +77,16 @@ const parseLineItem = (line, currentGroup) => {
         colorHint,
         rValue,
         isSupplyOnly,
-        quantity: parseFloat(area),
-        unit: 'm²',
+        quantity: parseFloat(quantity),
+        unit: unit,
         notes: [],
         location: currentGroup?.location || null,
-        category: currentGroup?.category || null,
+        category: category,
     };
 
     if (remainder && remainder.trim()) {
         let notesContent = remainder.trim().replace(/^\s*[-—]\s*/, '');
-        const dampCourseMatch = notesContent.match(REGEX.DAMP_COURSE);
-        if (dampCourseMatch) {
-            lineItem.notes.push(dampCourseMatch[0].trim());
-            notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
-        }
-        if (notesContent) {
-            lineItem.notes.push(...splitNotes(notesContent));
-        }
+        lineItem.notes.push(...splitNotes(notesContent));
     }
 
     return { lineItem };
@@ -125,33 +101,62 @@ export const parseWorksheetText = (text) => {
 
     for (const line of lines) {
         const trimmedLine = line.trim();
-        if (!trimmedLine) continue;
+        if (!trimmedLine || trimmedLine.startsWith('___')) {
+            continue;
+        }
 
-        const groupData = parseGroupHeader(trimmedLine);
+        const isItemGroup = !isLineItem(trimmedLine) && REGEX.GROUP_HEADER.test(line);
+        const isImplied = !line.trim().startsWith('-') && isLineItem(trimmedLine);
 
-        if (groupData) {
+        if (isItemGroup) {
+            const locationMatch = trimmedLine.match(/^(?:U\d+,\s*)?([^–]+)/);
+            const location = locationMatch ? locationMatch[1].trim() : trimmedLine;
+            const itemTypeMatch = trimmedLine.match(/–\s*(.+)/);
+            const itemType = itemTypeMatch ? itemTypeMatch[1].trim() : null;
+
             currentGroup = {
                 id: nanoid(),
                 type: 'GROUP_HEADER',
                 groupName: trimmedLine,
-                unitNumber: groupData.unitNumber,
-                location: groupData.location,
-                itemType: groupData.itemType,
-                category: groupData.category,
+                unitNumber: null,
+                location: location,
+                itemType: itemType,
+                category: mapItemTypeToCategory(itemType || location),
                 lineItems: [],
             };
             worksheet.groups.push(currentGroup);
             currentLineItem = null;
         } else if (isLineItem(trimmedLine)) {
-            const parsed = parseLineItem(trimmedLine, currentGroup);
+            const parsed = parseLineItem(trimmedLine, currentGroup, isImplied);
             if (parsed && currentGroup) {
                 currentLineItem = parsed.lineItem;
                 currentGroup.lineItems.push(currentLineItem);
             }
         } else if (currentLineItem) {
-            currentLineItem.notes.push(trimmedLine);
+            const promotionMatch = trimmedLine.match(REGEX.NOTE_PROMOTION);
+            if (promotionMatch && currentGroup) {
+                const { description, quantity, unit } = promotionMatch.groups;
+                const promotedItem = {
+                    id: nanoid(),
+                    type: 'LINE_ITEM',
+                    confidence: 'high',
+                    originalText: trimmedLine,
+                    description: description.trim(),
+                    colorHint: null,
+                    rValue: null,
+                    isSupplyOnly: false,
+                    quantity: parseFloat(quantity),
+                    unit: unit,
+                    notes: [],
+                    location: currentGroup.location,
+                    category: mapItemTypeToCategory(description),
+                };
+                currentGroup.lineItems.push(promotedItem);
+            } else {
+                // This is an indented note. Split it in case it contains multiple notes.
+                currentLineItem.notes.push(...splitNotes(trimmedLine));
+            }
         } else if (currentGroup) {
-            // This is likely a note that couldn't be parsed as a line item.
             currentGroup.lineItems.push({
                 id: nanoid(),
                 type: 'NOTE',
