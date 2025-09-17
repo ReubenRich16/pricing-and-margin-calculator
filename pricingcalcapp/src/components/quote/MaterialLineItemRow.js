@@ -20,7 +20,7 @@ const MaterialLineItemRow = ({ item, onItemChange }) => {
   const reconstructedText = `${item.description} ${item.colorHint ? `(${item.colorHint})` : ''} ${item.rValue || ''} – ${item.quantity}${item.unit}`;
 
   return (
-    <li className="list-group-item" style={itemStyle}>
+    <li style={itemStyle}>
       <div className="d-flex justify-content-between align-items-center">
         <input
           type="text"

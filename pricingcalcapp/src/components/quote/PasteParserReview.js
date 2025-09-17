@@ -62,7 +62,7 @@ const RawGroupCard = ({ group, onMergeGroup, onItemChange, onGroupToggle, isFirs
       </div>
     </div>
     <div className="card-body">
-      <ul className="list-group list-group-flush">
+      <ul>
         {group.lineItems.map((item, itemIdx) => (
           <MaterialLineItemRow 
             key={item.id || itemIdx} 

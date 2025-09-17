@@ -101,6 +101,22 @@ const Calculator = () => {
   };
 
   const handleGroupToggle = (groupId) => {
+    const newAggregatedData = JSON.parse(JSON.stringify(aggregatedWorksheetData));
+    const groupIndex = newAggregatedData.groups.findIndex(g => g.id === groupId);
+
+    if (groupIndex !== -1) {
+        const groupToToggle = newAggregatedData.groups[groupIndex];
+        const rawSourceGroups = rawWorksheetData.groups.filter(rawGroup => 
+            groupToToggle.sourceGroupIds && groupToToggle.sourceGroupIds.includes(rawGroup.id)
+        );
+
+        if (rawSourceGroups.length > 0) {
+            const reaggregatedGroup = aggregateWorksheet({ groups: rawSourceGroups }, materials).groups[0];
+            newAggregatedData.groups[groupIndex] = reaggregatedGroup;
+            setAggregatedWorksheetData(newAggregatedData);
+        }
+    }
+
     setGroupToggleState(prevState => ({
       ...prevState,
       [groupId]: !prevState[groupId]
