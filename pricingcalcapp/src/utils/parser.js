@@ -3,9 +3,9 @@ import { nanoid } from 'nanoid';
 // --- HELPER FUNCTIONS ---
 
 const smartTitleCase = (str) => {
-    // 1. Standard Title Case (split by spaces or hyphens)
-    // We use a regex that treats hyphens as separators
-    let result = str.toLowerCase().replace(/(?:^|[\s-])\w/g, (match) => {
+    // 1. Standard Title Case (split by spaces or hyphens, ampersands, slashes, brackets)
+    // Regex: Matches start of string or character after space, hyphen, ampersand, slash, bracket
+    let result = str.toLowerCase().replace(/(?:^|[\s-&/()–])\w/g, (match) => {
         return match.toUpperCase();
     });
     
@@ -73,8 +73,11 @@ const REGEX = {
     SUPPLY_ONLY: /SUPPLY ONLY/i,
     LAYERED: /layered/i,
     
-    // Block Detection
-    BLOCK_HEADER: /^(?:Block\s+\d+|Existing|New|Extension)/i,
+    // Block Detection - Refined to avoid capturing "New Ground Floor" etc.
+    BLOCK_HEADER: /^(?:Block\s+\d+)/i,
+    
+    // Additional Items Prefix
+    ADDITIONAL_ITEMS: /^(?:Additional Items:?|Extras:?)\s*/i,
 };
 
 // --- PARSING HELPER FUNCTIONS ---
@@ -314,9 +317,16 @@ export const parseWorksheetText = (text, materials = []) => {
     let currentBlock = null; 
 
     for (const line of lines) {
-        const trimmedLine = line.trim();
+        let trimmedLine = line.trim();
         if (!trimmedLine || trimmedLine.startsWith('___')) {
             continue;
+        }
+        
+        // Handle Additional Items prefix by stripping it
+        // This allows "Additional Items: Block 1..." to be parsed as "Block 1..."
+        if (REGEX.ADDITIONAL_ITEMS.test(trimmedLine)) {
+            trimmedLine = trimmedLine.replace(REGEX.ADDITIONAL_ITEMS, '').trim();
+            if (!trimmedLine) continue; // Skip if line was just "Additional Items:"
         }
 
         const looksLikeLineItem = isLineItem(trimmedLine);
@@ -347,6 +357,7 @@ export const parseWorksheetText = (text, materials = []) => {
                 }
             }
         } else {
+            // BLOCK DETECT: Only catch "Block X"
             if (REGEX.BLOCK_HEADER.test(trimmedLine)) {
                 currentBlock = trimmedLine;
                 currentLineItem = null; 

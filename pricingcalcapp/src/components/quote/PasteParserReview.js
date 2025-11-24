@@ -1,6 +1,26 @@
 import React from 'react';
 import MaterialLineItemRow from './MaterialLineItemRow';
 
+const formatItemDescription = (item) => {
+  let description = item.description;
+
+  if (item.productCount) {
+    // Replace "_ panels" or "_ [unit]" placeholders
+    description = description.replace(/_\s*(panels|bags|rolls|sheets)/gi, `${item.productCount} $1`);
+    // Also handle just "_" if it precedes a unit that matches the extracted unit
+    if (item.productUnit) {
+       // Less strict replacement might be risky, sticking to explicit placeholders or the Unit
+    }
+  }
+
+  if (item.thickness) {
+    // Replace "_mm" with actual thickness
+    description = description.replace(/_mm/gi, item.thickness);
+  }
+  
+  return description;
+};
+
 const AggregatedGroupCard = ({ group, onGroupToggle }) => (
   <div className="card mb-3">
     <div className="card-header d-flex justify-content-between align-items-center">
@@ -14,27 +34,50 @@ const AggregatedGroupCard = ({ group, onGroupToggle }) => (
     </div>
     <div className="card-body">
       <ul className="list-group list-group-flush">
-        {group.lineItems.map((item, itemIdx) => (
-          <li key={item.id || itemIdx} className="list-group-item">
-            {item.isNoteGroup ? (
-              <div className="text-muted d-block">
-                {item.notes.map((note, noteIdx) => (
-                  <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
-                ))}
-              </div>
-            ) : (
-              <>
-                {'– '}
-                {item.description}
-                {item.colorHint && ` (MARKED ${item.colorHint})`}
-                {item.rValue && ` ${item.rValue}`}
-                {' – '}{item.quantity}{item.unit}
-                {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
-                {item.isSupplyOnly && <span className="badge bg-secondary ms-2">Supply Only</span>}
-              </>
-            )}
-          </li>
-        ))}
+        {group.lineItems.map((item, itemIdx) => {
+          // Prepare display string
+          const description = formatItemDescription(item);
+          
+          return (
+            <li key={item.id || itemIdx} className="list-group-item">
+              {item.isNoteGroup ? (
+                <div className="text-muted d-block">
+                  {item.notes.map((note, noteIdx) => (
+                    <div key={noteIdx} style={{ whiteSpace: 'pre' }}>&nbsp;&nbsp;— {note}</div>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  <div>
+                    {'– '}
+                    {description}
+                    {item.colorHint && ` (MARKED ${item.colorHint})`}
+                    {item.rValue && ` ${item.rValue}`}
+                    {' – '}
+                    {/* If description was updated with count, maybe we don't need to show it again? 
+                        But keeping standard format "Desc - Qty" is good. 
+                        If Product Count was NOT injected into description (because no placeholder), display it here.
+                    */}
+                    {item.productCount && !description.includes(`${item.productCount}`) 
+                      ? `${item.productCount} ${item.productUnit || 'Panels'} (${item.quantity}${item.unit})` 
+                      : `${item.quantity}${item.unit}`
+                    }
+                    
+                    {item.specifications && item.specifications.width && ` (${item.specifications.width})`}
+                    {item.isSupplyOnly && <span className="badge bg-secondary ms-2">Supply Only</span>}
+                  </div>
+                  {item.notes && item.notes.length > 0 && (
+                    <small className="text-muted d-block mt-1">
+                      {item.notes.map((note, i) => (
+                        <div key={i}>— {note}</div>
+                      ))}
+                    </small>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   </div>

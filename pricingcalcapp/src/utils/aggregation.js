@@ -115,17 +115,23 @@ export const aggregateWorksheet = (rawWorksheetData, materials, groupingMode = '
                 existing.quantity += item.quantity;
                 
                 // Sum Product Counts (if both exist)
-                if (existing.productCount && item.productCount) {
-                    existing.productCount += item.productCount;
-                } else if (item.productCount) {
-                    existing.productCount = item.productCount; // Should technically not happen if key matches
+                if (existing.productCount || item.productCount) {
+                    existing.productCount = (existing.productCount || 0) + (item.productCount || 0);
                 }
 
-                // Merge Notes (Deduplicate)
-                existing.notes = [...new Set([...existing.notes, ...item.notes])];
+                // Merge Notes (Deduplicate) & Filter out Auto-calculated notes to avoid redundancy
+                // We filter them here because we display productCount inline now.
+                const allNotes = [...existing.notes, ...item.notes];
+                const filteredNotes = allNotes.filter(note => !note.startsWith('⚡ Auto-calculated'));
+                existing.notes = [...new Set(filteredNotes)];
             } else {
                 // Clone item to avoid mutating original reference
-                combinedLineItems.set(itemKey, { ...item });
+                const newItem = { ...item };
+                // Filter notes for the first item too
+                if (newItem.notes) {
+                    newItem.notes = newItem.notes.filter(note => !note.startsWith('⚡ Auto-calculated'));
+                }
+                combinedLineItems.set(itemKey, newItem);
             }
         });
 
@@ -225,39 +231,19 @@ export const aggregateWorksheet = (rawWorksheetData, materials, groupingMode = '
         // Prefix Generation
         let prefix = '';
         if (groupingMode === 'BLOCK' && originalGroup.block) {
-            // If grouping by block, use the block name as prefix
-            // But we also want to list units if they differ? 
-            // "Block 1: Ground Floor..."
-            // Or "Block 1: TH1A-1 - TH1A-7, Ground Floor..." ?
-            // Usually Block header already contains unit range "Block 1: TH1A-1 - TH1A-7".
-            // Let's prepend Block if it exists.
-            
-            // If originalGroup.block is "Block 1: TH1A-1...", we can use that.
-            // But we merged multiple groups. All should have same block.
-            // We might want to show unit range if it's a subset?
-            // Let's just use the block string.
             prefix = `${originalGroup.block}: `;
-            
         } else if (unitIdentifiers.size > 0) {
-            // UNIT or LEVEL mode: List units
-            // Sort them naturally (alphanumeric)
             const sortedUnits = Array.from(unitIdentifiers).sort((a, b) => {
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
 
             if (sortedUnits.length > 1) {
-                // Try to compress range if simple numbers? 
-                // For now, just First-Last if > 1
                 prefix = `${sortedUnits[0]} - ${sortedUnits[sortedUnits.length - 1]}, `;
             } else if (sortedUnits.length === 1) {
                 prefix = `${sortedUnits[0]}, `;
             }
         }
 
-        // Construct Final Name
-        // Remove Block from originalGroup.groupName if we are prepending it?
-        // originalGroup.groupName usually has "Unit, Location - Type".
-        // If we are constructing from scratch:
         const baseName = `${originalGroup.location}${originalGroup.itemType ? ` – ${originalGroup.itemType}` : ''}`;
         
         const groupName = `${prefix}${baseName}`;
