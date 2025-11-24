@@ -41,7 +41,7 @@ const mapItemTypeToCategory = (itemType) => {
     const lower = itemType.toLowerCase();
     if (lower.includes('xps')) return 'XPS';
     if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
-    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('wall panel insulation') || lower.includes('panels')) return 'Rigid Wall/Soffit';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('wall panel insulation') || lower.includes('panels') || lower.includes('slab on ground') || lower.includes('underfloor')) return 'Rigid Wall/Soffit';
     if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
     if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
     if (lower.includes('subfloor')) return 'Subfloor';
@@ -118,7 +118,7 @@ const calculatePanelCount = (itemData, materials) => {
     if (itemData.productCount) return null;
     if (!['XPS', 'Rigid Wall/Soffit'].includes(itemData.category)) return null;
 
-    let width, length;
+    let width, length, sourceName;
 
     // 1. Check extracted dimensions from text
     if (itemData.dimensions) {
@@ -127,6 +127,7 @@ const calculatePanelCount = (itemData, materials) => {
              // Usually length x width (e.g. 2400x600)
              length = parseFloat(parts[0]);
              width = parseFloat(parts[1]);
+             sourceName = itemData.dimensions;
         }
     }
 
@@ -157,6 +158,7 @@ const calculatePanelCount = (itemData, materials) => {
         if (match) {
             width = parseFloat(match.width);
             length = parseFloat(match.length);
+            sourceName = match.materialName;
         }
     }
 
@@ -167,7 +169,7 @@ const calculatePanelCount = (itemData, materials) => {
         return {
             count: count,
             unit: 'panels', // Default to panels for XPS/Rigid
-            dims: `${Math.max(width, length)}x${Math.min(width, length)}` // Format like 2400x600
+            source: sourceName || `${Math.max(width, length)}x${Math.min(width, length)}`
         };
     }
     return null;
@@ -266,7 +268,7 @@ const parseLineItem = (line, currentGroup, materials) => {
         lineItem.productCount = calcResult.count;
         lineItem.productUnit = calcResult.unit;
         // Add note
-        lineItem.notes.push(`⚡ Auto-calculated: ${calcResult.count} panels based on ${calcResult.dims} dimensions.`);
+        lineItem.notes.push(`⚡ Auto-calc: ${calcResult.count} panels (based on ${calcResult.source}).`);
     }
 
     const additionalItems = [];

@@ -122,14 +122,14 @@ export const aggregateWorksheet = (rawWorksheetData, materials, groupingMode = '
                 // Merge Notes (Deduplicate) & Filter out Auto-calculated notes to avoid redundancy
                 // We filter them here because we display productCount inline now.
                 const allNotes = [...existing.notes, ...item.notes];
-                const filteredNotes = allNotes.filter(note => !note.startsWith('⚡ Auto-calculated'));
+                const filteredNotes = allNotes.filter(note => !note.startsWith('⚡ Auto-calc'));
                 existing.notes = [...new Set(filteredNotes)];
             } else {
                 // Clone item to avoid mutating original reference
                 const newItem = { ...item };
                 // Filter notes for the first item too
                 if (newItem.notes) {
-                    newItem.notes = newItem.notes.filter(note => !note.startsWith('⚡ Auto-calculated'));
+                    newItem.notes = newItem.notes.filter(note => !note.startsWith('⚡ Auto-calc'));
                 }
                 combinedLineItems.set(itemKey, newItem);
             }
