@@ -26,7 +26,10 @@ const REGEX = {
     IMPLIED_LINE_ITEM: /^(?<descriptionAndStuff>.+?)\s+(?<quantity>[\d,.]+)(?<unit>m²|LM|m2|lm)(?<remainder>.*)$/i,
 
     // Specific extractions
-    PANEL_COUNT: /(?<count>\d+)\s+panels/i,
+    PRODUCT_COUNT: /(?<count>\d+)\s*(?<unit>panels|bags|rolls|sheets)/i,
+    THICKNESS: /(?<thickness>\d+mm)/i,
+    DIMENSIONS: /(?<dimensions>\d+\s*[xX]\s*\d+mm)/i,
+    
     R_VALUE: /R[\d.]+\s*\w*/,
     COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
     DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
@@ -59,18 +62,37 @@ const parseLineItem = (line, currentGroup) => {
     let description = descriptionAndStuff;
     let colorHint = null;
     let rValue = null;
-    let panelCount = null;
     let isSupplyOnly = false;
+    
+    // Specific Product Fields
+    let productCount = null;
+    let productUnit = null;
+    let thickness = null;
+    let dimensions = null;
 
-    // Extract Panel Count
-    const panelMatch = description.match(REGEX.PANEL_COUNT);
-    if (panelMatch) {
-        panelCount = parseInt(panelMatch.groups.count, 10);
-        // We generally keep "X panels" in the description for context, 
-        // but we store the number separately for calculations.
+    // --- SECONDARY EXTRACTION ON DESCRIPTION ---
+    
+    // Extract Product Count (Panels/Bags/Rolls/Sheets)
+    const productCountMatch = description.match(REGEX.PRODUCT_COUNT);
+    if (productCountMatch) {
+        productCount = parseInt(productCountMatch.groups.count, 10);
+        productUnit = productCountMatch.groups.unit.toLowerCase();
+        // We do NOT remove this from description to keep context readable
     }
 
-    // Extract Supply Only flag from main description
+    // Extract Thickness (e.g., 70mm)
+    const thicknessMatch = description.match(REGEX.THICKNESS);
+    if (thicknessMatch) {
+        thickness = thicknessMatch.groups.thickness;
+    }
+
+    // Extract Dimensions (e.g., 2400x600mm)
+    const dimensionsMatch = description.match(REGEX.DIMENSIONS);
+    if (dimensionsMatch) {
+        dimensions = dimensionsMatch.groups.dimensions.replace(/\s+/g, ''); // Normalize spacing
+    }
+
+    // Extract Supply Only flag
     if (REGEX.SUPPLY_ONLY.test(description)) {
         isSupplyOnly = true;
     }
@@ -103,7 +125,13 @@ const parseLineItem = (line, currentGroup) => {
         rValue,
         isSupplyOnly,
         isLayered: false, // will check notes later
-        panelCount,
+        
+        // New Fields
+        productCount,
+        productUnit,
+        thickness,
+        dimensions,
+        
         quantity: parseFloat(quantity.replace(/,/g, '')), // handle commas
         unit: unit,
         notes: [],
@@ -126,7 +154,8 @@ const parseLineItem = (line, currentGroup) => {
                 id: nanoid(),
                 type: 'LINE_ITEM',
                 description: "Damp Course",
-                specifications: { width, length: lengthValue },
+                specifications: { width: `${width}`, length: lengthValue }, // ensure width is string '300MM' or similar
+                thickness: width.toLowerCase(), // map width to thickness for consistency
                 quantity: lengthValue,
                 unit: 'LM',
                 colorHint: null,
@@ -216,7 +245,8 @@ export const parseWorksheetText = (text) => {
                         id: nanoid(),
                         type: 'LINE_ITEM',
                         description: "Damp Course",
-                        specifications: { width, length: lengthValue },
+                        specifications: { width: `${width}`, length: lengthValue },
+                        thickness: width.toLowerCase(),
                         quantity: lengthValue,
                         unit: 'LM',
                         colorHint: null,
