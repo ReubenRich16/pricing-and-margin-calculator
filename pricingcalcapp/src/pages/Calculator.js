@@ -56,11 +56,47 @@ const Calculator = () => {
 
   const handleDataFromParser = (parsedData) => {
     setRawWorksheetData(parsedData);
-    reprocessData(parsedData, groupingMode);
+    
+    // Smart Default Logic
+    let mode = groupingMode;
+    // We need to update parser.js to return metadata for this to work fully, 
+    // but for now we can inspect the raw data structure
+    // Simple heuristic: if groups have 'block' property populated, default to BLOCK
+    // If multiple distinct unitIdentifiers found, default to UNIT
+    // Else LEVEL
+    
+    // Since we haven't updated parser return structure to include metadata object yet (based on previous file content),
+    // let's do a quick check here or rely on parser update. 
+    // The prompt said "Return metadata: { defaultGrouping: ... }" in parser.js
+    // I will implement that in parser.js next. Assuming it exists:
+    
+    if (parsedData.metadata && parsedData.metadata.defaultGrouping) {
+        mode = parsedData.metadata.defaultGrouping;
+        setGroupingMode(mode);
+    } else {
+        // Fallback logic if metadata missing
+        const hasBlocks = parsedData.groups.some(g => g.block);
+        const uniqueUnits = new Set(parsedData.groups.map(g => g.unitIdentifier).filter(Boolean));
+        
+        if (hasBlocks) {
+            mode = 'BLOCK';
+        } else if (uniqueUnits.size > 1) {
+            mode = 'UNIT';
+        } else {
+            mode = 'LEVEL'; // or UNIT default
+        }
+        setGroupingMode(mode);
+    }
+
+    reprocessData(parsedData, mode);
   };
 
   const handleGroupingModeChange = (newMode) => {
       setGroupingMode(newMode);
+      // Reset toggle state to avoid potential crash with old IDs? 
+      // reprocessData will create new IDs and reset state anyway.
+      setGroupToggleState({}); 
+      
       if (rawWorksheetData) {
           reprocessData(rawWorksheetData, newMode);
       }
@@ -87,6 +123,9 @@ const Calculator = () => {
     
     // Pass materials to re-parser so auto-calc works during edits
     const newParsedData = parseWorksheetText(updatedText, materials);
+    
+    // Preserve metadata if parser doesn't re-generate it fully or if we want to keep user's mode
+    // Actually we want to keep current mode usually
     setRawWorksheetData(newParsedData);
     reprocessData(newParsedData, groupingMode);
   };
@@ -110,6 +149,9 @@ const Calculator = () => {
   };
 
   const handleGroupToggle = (groupId) => {
+    // Ensure aggregatedWorksheetData exists
+    if (!aggregatedWorksheetData || !aggregatedWorksheetData.groups) return;
+    
     const newAggregatedData = JSON.parse(JSON.stringify(aggregatedWorksheetData));
     const groupIndex = newAggregatedData.groups.findIndex(g => g.id === groupId);
 

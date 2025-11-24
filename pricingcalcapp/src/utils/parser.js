@@ -308,10 +308,10 @@ const parseLineItem = (line, currentGroup, materials) => {
 // --- MAIN PARSING ENGINE ---
 export const parseWorksheetText = (text, materials = []) => {
     const lines = text.replace(/\u00A0/g, ' ').split('\n');
-    const worksheet = { groups: [] };
+    const groups = [];
     let currentGroup = null;
     let currentLineItem = null;
-    let currentBlock = null; // Context Awareness: Track Parent Block
+    let currentBlock = null; 
 
     for (const line of lines) {
         const trimmedLine = line.trim();
@@ -321,13 +321,11 @@ export const parseWorksheetText = (text, materials = []) => {
 
         const looksLikeLineItem = isLineItem(trimmedLine);
 
-        // If it's a line item, process it
         if (looksLikeLineItem) {
             const parsed = parseLineItem(trimmedLine, currentGroup, materials);
             if (parsed) {
                 currentLineItem = parsed.lineItem;
                 
-                // Ensure we have a group to attach to
                 if (!currentGroup) {
                     currentGroup = {
                         id: nanoid(),
@@ -337,38 +335,28 @@ export const parseWorksheetText = (text, materials = []) => {
                         itemType: "Misc",
                         category: "Other",
                         lineItems: [],
-                        block: currentBlock, // Assign current block
+                        block: currentBlock, 
                     };
-                    worksheet.groups.push(currentGroup);
+                    groups.push(currentGroup);
                 }
 
                 currentGroup.lineItems.push(currentLineItem);
                 
-                // Add any extra items found (e.g. damp course)
                 if (parsed.additionalItems && parsed.additionalItems.length > 0) {
                     currentGroup.lineItems.push(...parsed.additionalItems);
                 }
             }
-        } 
-        // If it's NOT a line item, check if it's a Header or a Note
-        else {
-            
-            // Check for Block Header first
+        } else {
             if (REGEX.BLOCK_HEADER.test(trimmedLine)) {
                 currentBlock = trimmedLine;
-                // Do NOT create a group yet, just update state
-                currentLineItem = null; // Reset line item context
+                currentLineItem = null; 
                 continue;
             }
 
-            // Heuristics for Header vs Note
-            const isNoteFormat = /^[ \t]*[-•*]/.test(line); // indented or bulleted
+            const isNoteFormat = /^[ \t]*[-•*]/.test(line); 
             const hasNoteKeywords = REGEX.SUPPLY_ONLY.test(trimmedLine) || REGEX.LAYERED.test(trimmedLine) || REGEX.DAMP_COURSE.test(trimmedLine);
             
             if ((isNoteFormat || hasNoteKeywords) && currentLineItem) {
-                // Treat as Note for current item
-                
-                // Check for Damp Course specifically (legacy support for notes)
                 const dampCourseMatch = trimmedLine.match(REGEX.DAMP_COURSE);
                 if (dampCourseMatch) {
                     const { width, length } = dampCourseMatch.groups;
@@ -376,7 +364,7 @@ export const parseWorksheetText = (text, materials = []) => {
                     currentGroup.lineItems.push({
                         id: nanoid(),
                         type: 'LINE_ITEM',
-                        description: "Includes Damp Course", // Explicit Description
+                        description: "Includes Damp Course", 
                         specifications: { width: `${width}`, length: lengthValue },
                         thickness: width.toLowerCase(),
                         quantity: lengthValue,
@@ -388,13 +376,10 @@ export const parseWorksheetText = (text, materials = []) => {
                         category: "Consumables",
                     });
                 } else {
-                    // Regular note
-                    // Preservation: We keep the raw note text!
                     const cleanNote = trimmedLine.replace(/^[ \t]*[-•*]\s*/, '').trim();
                     if (cleanNote) {
                         currentLineItem.notes.push(cleanNote);
                         
-                        // Check for flags in the note
                         if (REGEX.SUPPLY_ONLY.test(cleanNote)) {
                             currentLineItem.isSupplyOnly = true;
                         }
@@ -404,11 +389,6 @@ export const parseWorksheetText = (text, materials = []) => {
                     }
                 }
             } else {
-                // Treat as Group Header
-                
-                // Unit Parsing: Look for complex IDs like TH1A-1 or DW2
-                // Matches "ID, Location..." or just "Location"
-                // ID pattern: Alphanumeric with optional dashes, at start of line, usually followed by comma or separator
                 const unitMatch = trimmedLine.match(/^([A-Z0-9]+(?:-[A-Z0-9]+)?)(?:,|\s–|\s-)/i);
                 const unitIdentifier = unitMatch ? unitMatch[1].trim() : null;
 
@@ -417,24 +397,40 @@ export const parseWorksheetText = (text, materials = []) => {
                 const itemTypeMatch = trimmedLine.match(/–\s*(.+)/);
                 const itemType = itemTypeMatch ? itemTypeMatch[1].trim() : null;
                 
-                // Apply Smart Title Case to Header
                 const titleCasedHeader = smartTitleCase(trimmedLine);
 
                 currentGroup = {
                     id: nanoid(),
                     type: 'GROUP_HEADER',
                     groupName: titleCasedHeader,
-                    unitIdentifier: unitIdentifier, // Store Unit ID
+                    unitIdentifier: unitIdentifier,
                     location: location,
                     itemType: itemType,
                     category: mapItemTypeToCategory(itemType || location),
                     lineItems: [],
-                    block: currentBlock, // Assign current block
+                    block: currentBlock, 
                 };
-                worksheet.groups.push(currentGroup);
-                currentLineItem = null; // Reset current line item as we started a new group
+                groups.push(currentGroup);
+                currentLineItem = null; 
             }
         }
     }
-    return worksheet;
+
+    // --- SMART DEFAULT ---
+    const hasBlocks = groups.some(g => !!g.block);
+    const uniqueUnits = new Set(groups.map(g => g.unitIdentifier).filter(Boolean)).size;
+    
+    let defaultGrouping = 'LEVEL';
+    if (hasBlocks) {
+        defaultGrouping = 'BLOCK';
+    } else if (uniqueUnits > 1) {
+        defaultGrouping = 'UNIT';
+    }
+
+    return {
+        groups,
+        metadata: {
+            defaultGrouping
+        }
+    };
 };
