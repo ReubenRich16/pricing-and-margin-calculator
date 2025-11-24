@@ -39,11 +39,14 @@ const sortBulkInsulation = (a, b) => {
 };
 
 const parseUnitNumber = (groupName) => {
-    const match = groupName.match(/^U(\d+)/);
+    // Note: With unitIdentifier now available, this helper might be less critical for UNIT mode
+    // but still useful for sorting unit ranges in LEVEL/BLOCK mode.
+    // Try to extract first number.
+    const match = groupName.match(/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
 }
 
-export const aggregateWorksheet = (rawWorksheetData, materials) => {
+export const aggregateWorksheet = (rawWorksheetData, materials, groupingMode = 'UNIT') => {
     if (!rawWorksheetData || !rawWorksheetData.groups) {
         return { groups: [] };
     }
@@ -52,21 +55,43 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 1: Group raw line items by a composite key ---
     rawWorksheetData.groups.forEach(group => {
-        const unitNumber = parseUnitNumber(group.groupName);
-        const key = unitNumber ? `${group.location}|${group.itemType}` : group.groupName;
+        // Try to use the parser's unitIdentifier if available, otherwise fallback to parsing name
+        const unitIdentifier = group.unitIdentifier;
+        const unitNumber = parseUnitNumber(unitIdentifier || group.groupName);
+        
+        let key;
+
+        if (groupingMode === 'UNIT') {
+            // Group by Unit + Location + ItemType
+            // Use unitIdentifier if available, else groupName (fallback)
+            const unitKey = unitIdentifier || group.groupName;
+            key = `${unitKey}|${group.location}|${group.itemType}`;
+        } else if (groupingMode === 'BLOCK') {
+            // Group by Block + Location + ItemType
+            const blockKey = group.block || "Ungrouped";
+            key = `${blockKey}|${group.location}|${group.itemType}`;
+        } else {
+            // LEVEL Mode (Default fallback logic if not UNIT/BLOCK)
+            // Group by Location + ItemType only (merges across units/blocks)
+            key = `${group.location}|${group.itemType}`;
+        }
 
         if (!aggregatedGroups.has(key)) {
             aggregatedGroups.set(key, {
-                unitNumbers: new Set(),
+                unitIdentifiers: new Set(), // Store identifiers like "U1", "TH1A-1"
                 lineItems: [],
                 sourceGroupIds: new Set(),
                 originalGroup: group,
             });
         }
         const aggGroup = aggregatedGroups.get(key);
-        if (unitNumber) {
-            aggGroup.unitNumbers.add(unitNumber);
+        
+        if (unitIdentifier) {
+            aggGroup.unitIdentifiers.add(unitIdentifier);
+        } else if (unitNumber) {
+            aggGroup.unitIdentifiers.add(`U${unitNumber}`); // Fallback
         }
+
         aggGroup.sourceGroupIds.add(group.id);
         aggGroup.lineItems.push(...group.lineItems);
     });
@@ -75,7 +100,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
     // --- Step 2: Process each aggregated group ---
     for (const [key, groupData] of aggregatedGroups.entries()) {
-        const { unitNumbers, lineItems, sourceGroupIds, originalGroup } = groupData;
+        const { unitIdentifiers, lineItems, sourceGroupIds, originalGroup } = groupData;
 
         // --- Step 2a: Combine identical line items by summing quantities ---
         const combinedLineItems = new Map();
@@ -133,8 +158,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                         finalNotes.unshift(materialNote);
                     }
                 } else if (itemCategory === 'XPS') {
-                    // Legacy note, maybe removable if parser extracts dimensions
-                    // finalNotes.push('ISOMAX 300'); 
+                    // Legacy note
                 }
                 
                 if (!notesByRValue.has(item.rValue)) {
@@ -148,24 +172,12 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                 if (!itemsByRValue.has(item.rValue)) {
                     itemsByRValue.set(item.rValue, []);
                 }
-                // We keep notes on individual items now, but maybe we want to consolidate specific notes?
-                // The previous logic cleared notes and aggregated them at the end. 
-                // Given strict note preservation, we should be careful about clearing notes.
-                // However, for XPS/Rigid, the requirement seems to be about summarizing materials.
-                // I will retain individual notes to be safe, but still apply the R-value grouping if strict aggregation is ON.
-                
-                // For now, let's NOT clear the notes to preserve "Strict Note Preservation".
-                // item.notes = [];  <-- Removed this line
-                
                 itemsByRValue.get(item.rValue).push(item);
             });
 
             // Re-flatten
             processedLineItems = [];
             for (const [rValue, items] of itemsByRValue.entries()) {
-                // If we want to append aggregated notes, we can, but let's avoid duplicating specific line notes.
-                // The original code aggregated ALL notes to the last item.
-                // Let's keep items distinct.
                 processedLineItems.push(...items);
             }
         }
@@ -176,7 +188,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         }
 
         // --- Step 2d: Consolidate damp course notes ---
-        // (Legacy logic kept but likely won't trigger if Parser creates Line Items)
         processedLineItems.forEach(item => {
             const dampCourseNotes = item.notes.filter(note => note.toLowerCase().includes('damp course'));
             if (dampCourseNotes.length > 1) {
@@ -191,7 +202,6 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         });
 
         // --- Step 2e: Special processing for "Supply Only" items (roll calculation) ---
-        // Only add calculation note if not already present (avoid duplicates on re-aggregation)
         processedLineItems.forEach(item => {
             if (item.isSupplyOnly) {
                 const matchingMaterial = materials.find(m => {
@@ -211,15 +221,46 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         });
 
         // --- Step 2f: Construct the final aggregated group ---
-        const sortedUnits = Array.from(unitNumbers).sort((a, b) => a - b);
-        let unitPrefix = '';
-        if (sortedUnits.length > 1) {
-            unitPrefix = `U${sortedUnits[0]}-${sortedUnits[sortedUnits.length - 1]}, `;
-        } else if (sortedUnits.length === 1) {
-            unitPrefix = `U${sortedUnits[0]}, `;
+        
+        // Prefix Generation
+        let prefix = '';
+        if (groupingMode === 'BLOCK' && originalGroup.block) {
+            // If grouping by block, use the block name as prefix
+            // But we also want to list units if they differ? 
+            // "Block 1: Ground Floor..."
+            // Or "Block 1: TH1A-1 - TH1A-7, Ground Floor..." ?
+            // Usually Block header already contains unit range "Block 1: TH1A-1 - TH1A-7".
+            // Let's prepend Block if it exists.
+            
+            // If originalGroup.block is "Block 1: TH1A-1...", we can use that.
+            // But we merged multiple groups. All should have same block.
+            // We might want to show unit range if it's a subset?
+            // Let's just use the block string.
+            prefix = `${originalGroup.block}: `;
+            
+        } else if (unitIdentifiers.size > 0) {
+            // UNIT or LEVEL mode: List units
+            // Sort them naturally (alphanumeric)
+            const sortedUnits = Array.from(unitIdentifiers).sort((a, b) => {
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            if (sortedUnits.length > 1) {
+                // Try to compress range if simple numbers? 
+                // For now, just First-Last if > 1
+                prefix = `${sortedUnits[0]} - ${sortedUnits[sortedUnits.length - 1]}, `;
+            } else if (sortedUnits.length === 1) {
+                prefix = `${sortedUnits[0]}, `;
+            }
         }
 
-        const groupName = unitPrefix ? `${unitPrefix}${originalGroup.location}${originalGroup.itemType ? ` – ${originalGroup.itemType}` : ''}` : originalGroup.groupName;
+        // Construct Final Name
+        // Remove Block from originalGroup.groupName if we are prepending it?
+        // originalGroup.groupName usually has "Unit, Location - Type".
+        // If we are constructing from scratch:
+        const baseName = `${originalGroup.location}${originalGroup.itemType ? ` – ${originalGroup.itemType}` : ''}`;
+        
+        const groupName = `${prefix}${baseName}`;
 
         if (processedLineItems.length > 0) {
             finalGroups.push({

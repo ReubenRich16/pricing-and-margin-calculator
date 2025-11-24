@@ -25,13 +25,14 @@ const Calculator = () => {
     actualMargin: 0,
   });
   const [groupToggleState, setGroupToggleState] = useState({});
+  const [groupingMode, setGroupingMode] = useState('UNIT');
 
-  const reprocessData = useCallback((worksheetData) => {
+  const reprocessData = useCallback((worksheetData, mode = 'UNIT') => {
     if (worksheetData && materials && materials.length > 0) {
       console.log('--- Raw Parsed Data ---');
       console.log(JSON.stringify(worksheetData, null, 2));
 
-      const aggregatedData = aggregateWorksheet(worksheetData, materials);
+      const aggregatedData = aggregateWorksheet(worksheetData, materials, mode);
       
       console.log('--- Aggregated Data ---');
       console.log(JSON.stringify(aggregatedData, null, 2));
@@ -55,7 +56,14 @@ const Calculator = () => {
 
   const handleDataFromParser = (parsedData) => {
     setRawWorksheetData(parsedData);
-    reprocessData(parsedData);
+    reprocessData(parsedData, groupingMode);
+  };
+
+  const handleGroupingModeChange = (newMode) => {
+      setGroupingMode(newMode);
+      if (rawWorksheetData) {
+          reprocessData(rawWorksheetData, newMode);
+      }
   };
 
   const handleItemChange = (itemId, changes) => {
@@ -77,9 +85,10 @@ const Calculator = () => {
       return `${g.groupName}\n${items}`;
     }).join('\n\n');
     
-    const newParsedData = parseWorksheetText(updatedText);
+    // Pass materials to re-parser so auto-calc works during edits
+    const newParsedData = parseWorksheetText(updatedText, materials);
     setRawWorksheetData(newParsedData);
-    reprocessData(newParsedData);
+    reprocessData(newParsedData, groupingMode);
   };
 
   const handleMergeGroup = (groupId) => {
@@ -96,7 +105,7 @@ const Calculator = () => {
       updatedWorksheet.groups.splice(groupIndex, 1);
       
       setRawWorksheetData(updatedWorksheet);
-      reprocessData(updatedWorksheet);
+      reprocessData(updatedWorksheet, groupingMode);
     }
   };
 
@@ -111,7 +120,8 @@ const Calculator = () => {
         );
 
         if (rawSourceGroups.length > 0) {
-            const reaggregatedGroup = aggregateWorksheet({ groups: rawSourceGroups }, materials).groups[0];
+            // Using groupingMode from state
+            const reaggregatedGroup = aggregateWorksheet({ groups: rawSourceGroups }, materials, groupingMode).groups[0];
             newAggregatedData.groups[groupIndex] = reaggregatedGroup;
             setAggregatedWorksheetData(newAggregatedData);
         }
@@ -136,15 +146,28 @@ const Calculator = () => {
               <h5 className="card-title mb-0 text-dark">Paste Scope of Works</h5>
             </div>
             <div className="card-body">
-              <PasteParser onParse={handleDataFromParser} materials={materials} />
+              <PasteParser onParse={handleDataFromParser} />
             </div>
           </div>
         </div>
         
         <div className="col-lg-8 mb-4">
           <div className="card shadow-sm">
-            <div className="card-header bg-light border-bottom">
+            <div className="card-header bg-light border-bottom d-flex justify-content-between align-items-center">
                <h5 className="card-title mb-0 text-dark">Review and Adjust</h5>
+               <div className="btn-group" role="group">
+                  <input type="radio" className="btn-check" name="groupingMode" id="modeUnit" autoComplete="off" 
+                         checked={groupingMode === 'UNIT'} onChange={() => handleGroupingModeChange('UNIT')} />
+                  <label className="btn btn-outline-primary btn-sm" htmlFor="modeUnit">By Unit</label>
+
+                  <input type="radio" className="btn-check" name="groupingMode" id="modeBlock" autoComplete="off" 
+                         checked={groupingMode === 'BLOCK'} onChange={() => handleGroupingModeChange('BLOCK')} />
+                  <label className="btn btn-outline-primary btn-sm" htmlFor="modeBlock">By Block</label>
+
+                  <input type="radio" className="btn-check" name="groupingMode" id="modeLevel" autoComplete="off" 
+                         checked={groupingMode === 'LEVEL'} onChange={() => handleGroupingModeChange('LEVEL')} />
+                  <label className="btn btn-outline-primary btn-sm" htmlFor="modeLevel">By Level</label>
+              </div>
             </div>
             <div className="card-body">
               <PasteParserReview 

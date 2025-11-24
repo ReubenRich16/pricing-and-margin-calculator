@@ -3,15 +3,21 @@ import { nanoid } from 'nanoid';
 // --- HELPER FUNCTIONS ---
 
 const smartTitleCase = (str) => {
-    // 1. Standard Title Case
-    let result = str.replace(/\w\S*/g, (txt) => {
-        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    // 1. Standard Title Case (split by spaces or hyphens)
+    // We use a regex that treats hyphens as separators
+    let result = str.toLowerCase().replace(/(?:^|[\s-])\w/g, (match) => {
+        return match.toUpperCase();
     });
     
     // 2. Fix specific ID patterns (DW1, TH1A-1, U1)
     // Matches word boundary, Prefix (Dw/Th/U), optional suffix (numbers/letters/dashes), word boundary
-    result = result.replace(/\b(Dw|Th|U)([0-9a-z-]+)?\b/g, (match, prefix, suffix) => {
+    result = result.replace(/\b(Dw|Th|U)([0-9a-z-]+)?\b/gi, (match, prefix, suffix) => {
         return prefix.toUpperCase() + (suffix ? suffix.toUpperCase() : '');
+    });
+    
+    // Fix Block
+    result = result.replace(/\bBlock\s+(\d+)\b/gi, (match, num) => {
+        return `Block ${num}`;
     });
 
     return result;
@@ -66,6 +72,9 @@ const REGEX = {
     // Keywords
     SUPPLY_ONLY: /SUPPLY ONLY/i,
     LAYERED: /layered/i,
+    
+    // Block Detection
+    BLOCK_HEADER: /^(?:Block\s+\d+|Existing|New|Extension)/i,
 };
 
 // --- PARSING HELPER FUNCTIONS ---
@@ -302,6 +311,7 @@ export const parseWorksheetText = (text, materials = []) => {
     const worksheet = { groups: [] };
     let currentGroup = null;
     let currentLineItem = null;
+    let currentBlock = null; // Context Awareness: Track Parent Block
 
     for (const line of lines) {
         const trimmedLine = line.trim();
@@ -327,6 +337,7 @@ export const parseWorksheetText = (text, materials = []) => {
                         itemType: "Misc",
                         category: "Other",
                         lineItems: [],
+                        block: currentBlock, // Assign current block
                     };
                     worksheet.groups.push(currentGroup);
                 }
@@ -341,23 +352,23 @@ export const parseWorksheetText = (text, materials = []) => {
         } 
         // If it's NOT a line item, check if it's a Header or a Note
         else {
-            // Heuristics for Header:
-            // 1. We are NOT currently parsing a line item's notes (or we are, but this line looks like a header)
-            // 2. It doesn't start with a dash/bullet (usually) - though some headers might.
-            // 3. It usually contains specific keywords or structure (Block, Unit, Level, Location)
             
-            // However, distinguishing between a "Note for the previous item" and a "New Header" is the hardest part.
-            // Rule: If it starts with a dash/bullet/indent, treat as Note for current item (if exists).
-            // Rule: If it matches "Damp Course" regex, treat as Note/Extra.
-            // Rule: Otherwise, treat as Header.
-            
+            // Check for Block Header first
+            if (REGEX.BLOCK_HEADER.test(trimmedLine)) {
+                currentBlock = trimmedLine;
+                // Do NOT create a group yet, just update state
+                currentLineItem = null; // Reset line item context
+                continue;
+            }
+
+            // Heuristics for Header vs Note
             const isNoteFormat = /^[ \t]*[-•*]/.test(line); // indented or bulleted
             const hasNoteKeywords = REGEX.SUPPLY_ONLY.test(trimmedLine) || REGEX.LAYERED.test(trimmedLine) || REGEX.DAMP_COURSE.test(trimmedLine);
             
             if ((isNoteFormat || hasNoteKeywords) && currentLineItem) {
                 // Treat as Note for current item
                 
-                // Check for Damp Course specifically
+                // Check for Damp Course specifically (legacy support for notes)
                 const dampCourseMatch = trimmedLine.match(REGEX.DAMP_COURSE);
                 if (dampCourseMatch) {
                     const { width, length } = dampCourseMatch.groups;
@@ -394,7 +405,14 @@ export const parseWorksheetText = (text, materials = []) => {
                 }
             } else {
                 // Treat as Group Header
-                const locationMatch = trimmedLine.match(/^(?:U\d+,\s*)?([^–]+)/);
+                
+                // Unit Parsing: Look for complex IDs like TH1A-1 or DW2
+                // Matches "ID, Location..." or just "Location"
+                // ID pattern: Alphanumeric with optional dashes, at start of line, usually followed by comma or separator
+                const unitMatch = trimmedLine.match(/^([A-Z0-9]+(?:-[A-Z0-9]+)?)(?:,|\s–|\s-)/i);
+                const unitIdentifier = unitMatch ? unitMatch[1].trim() : null;
+
+                const locationMatch = trimmedLine.match(/^(?:[A-Z0-9]+(?:-[A-Z0-9]+)?(?:,|\s–|\s-)\s*)?([^–]+)/i);
                 const location = locationMatch ? locationMatch[1].trim() : trimmedLine;
                 const itemTypeMatch = trimmedLine.match(/–\s*(.+)/);
                 const itemType = itemTypeMatch ? itemTypeMatch[1].trim() : null;
@@ -406,11 +424,12 @@ export const parseWorksheetText = (text, materials = []) => {
                     id: nanoid(),
                     type: 'GROUP_HEADER',
                     groupName: titleCasedHeader,
-                    unitNumber: null,
+                    unitIdentifier: unitIdentifier, // Store Unit ID
                     location: location,
                     itemType: itemType,
                     category: mapItemTypeToCategory(itemType || location),
                     lineItems: [],
+                    block: currentBlock, // Assign current block
                 };
                 worksheet.groups.push(currentGroup);
                 currentLineItem = null; // Reset current line item as we started a new group
