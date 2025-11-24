@@ -1,5 +1,13 @@
 import { nanoid } from 'nanoid';
 
+// --- HELPER FUNCTIONS ---
+
+const toTitleCase = (str) => {
+    return str.replace(/\w\S*/g, (txt) => {
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    });
+};
+
 // --- CATEGORY MAPPING HELPER ---
 const mapItemTypeToCategory = (itemType) => {
     if (!itemType) return 'Other';
@@ -52,6 +60,33 @@ const splitNotes = (notesString) => {
     return notesString.split(/\s*--\s*|\s*—\s*|\s*-\s*/)
         .map(n => n.trim())
         .filter(Boolean);
+};
+
+const validateLineItem = (lineItem) => {
+    // Dimension Check: If description contains "X panels" AND dimensions (e.g., "2400x600mm"):
+    // Calculate Theoretical Area = Count * Width * Length.
+    // Compare with the parsed Quantity (m²).
+    // If discrepancy > 5%, add a note.
+    
+    if (lineItem.productCount && lineItem.dimensions) {
+        // dimensions format: 2400x600mm
+        const dims = lineItem.dimensions.toLowerCase().replace('mm', '').split('x');
+        if (dims.length === 2) {
+            const width = parseFloat(dims[0]) / 1000; // convert mm to m
+            const length = parseFloat(dims[1]) / 1000; // convert mm to m
+            const theoreticalArea = lineItem.productCount * width * length;
+            const quotedArea = lineItem.quantity;
+            
+            // Calculate discrepancy percentage
+            const diff = Math.abs(theoreticalArea - quotedArea);
+            const percentage = (diff / quotedArea) * 100;
+            
+            if (percentage > 5) {
+                lineItem.notes.push(`⚠️ Dimensions Check: Count covers ${theoreticalArea.toFixed(2)} m², but quoted ${quotedArea.toFixed(2)} m².`);
+            }
+        }
+    }
+    return lineItem;
 };
 
 const parseLineItem = (line, currentGroup) => {
@@ -115,7 +150,7 @@ const parseLineItem = (line, currentGroup) => {
     const category = description.toLowerCase().includes('xps') ? 'XPS' : (currentGroup?.category || mapItemTypeToCategory(description));
 
     // Create the primary line item
-    const lineItem = {
+    let lineItem = {
         id: nanoid(),
         type: 'LINE_ITEM',
         confidence: 'high',
@@ -153,7 +188,7 @@ const parseLineItem = (line, currentGroup) => {
             additionalItems.push({
                 id: nanoid(),
                 type: 'LINE_ITEM',
-                description: "Damp Course",
+                description: "Includes Damp Course", // Explicit Description
                 specifications: { width: `${width}`, length: lengthValue }, // ensure width is string '300MM' or similar
                 thickness: width.toLowerCase(), // map width to thickness for consistency
                 quantity: lengthValue,
@@ -168,9 +203,12 @@ const parseLineItem = (line, currentGroup) => {
         }
 
         if (notesContent) {
+            // Preservation of Context: Ensure notes are added
             lineItem.notes.push(...splitNotes(notesContent));
         }
     }
+
+    lineItem = validateLineItem(lineItem);
 
     return { lineItem, additionalItems };
 };
@@ -244,7 +282,7 @@ export const parseWorksheetText = (text) => {
                     currentGroup.lineItems.push({
                         id: nanoid(),
                         type: 'LINE_ITEM',
-                        description: "Damp Course",
+                        description: "Includes Damp Course", // Explicit Description
                         specifications: { width: `${width}`, length: lengthValue },
                         thickness: width.toLowerCase(),
                         quantity: lengthValue,
@@ -257,6 +295,7 @@ export const parseWorksheetText = (text) => {
                     });
                 } else {
                     // Regular note
+                    // Preservation: We keep the raw note text!
                     const cleanNote = trimmedLine.replace(/^[ \t]*[-•*]\s*/, '').trim();
                     if (cleanNote) {
                         currentLineItem.notes.push(cleanNote);
@@ -276,11 +315,14 @@ export const parseWorksheetText = (text) => {
                 const location = locationMatch ? locationMatch[1].trim() : trimmedLine;
                 const itemTypeMatch = trimmedLine.match(/–\s*(.+)/);
                 const itemType = itemTypeMatch ? itemTypeMatch[1].trim() : null;
+                
+                // Apply Title Case to Header
+                const titleCasedHeader = toTitleCase(trimmedLine);
 
                 currentGroup = {
                     id: nanoid(),
                     type: 'GROUP_HEADER',
-                    groupName: trimmedLine,
+                    groupName: titleCasedHeader,
                     unitNumber: null,
                     location: location,
                     itemType: itemType,
