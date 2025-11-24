@@ -1,14 +1,207 @@
 import React from 'react';
-import { parseWorksheetText } from '../../utils/parser';
-import { aggregateWorksheet } from '../../utils/aggregation';
+import { nanoid } from 'nanoid';
 
-const PasteParser = ({ onParse, materials }) => {
+// --- CATEGORY MAPPING HELPER ---
+const mapItemTypeToCategory = (itemType) => {
+    if (!itemType) return 'Other';
+    const lower = itemType.toLowerCase();
+    if (lower.includes('bulk insulation') || lower.includes('batt')) return 'Bulk Insulation';
+    if (lower.includes('rigid') || lower.includes('soffit') || lower.includes('xps')) return 'Rigid Wall/Soffit';
+    if (lower.includes('wall wrap') || lower.includes('brane')) return 'Wall Wrap';
+    if (lower.includes('fire protection') || lower.includes('fireproof')) return 'Fire Protection';
+    if (lower.includes('subfloor')) return 'Subfloor';
+    if (lower.includes('pipe lagging')) return 'Acoustic Pipe Lagging';
+    if (['consumables', 'tape', 'dampcourse', 'strapping', 'staples'].some(c => lower.includes(c))) return 'Consumables';
+    return 'Other';
+};
+
+// --- REGEX DEFINITIONS ---
+const REGEX = {
+    GROUP_HEADER: /^U(\d+),\s*(.+?)(?:\s*–\s*(.+))?$/i,
+    SUPPLY_ONLY_ITEM: /^(?<description>.*?)\s*–\s*(?<area>\d+)m²\s*-\s*SUPPLY ONLY/i,
+    LINE_ITEM: /-\s*(?<descriptionAndStuff>.+?)\s*–\s*(?<area>\d+)m²(?<remainder>.*)/,
+    DAMP_COURSE: /Includes damp course –\s*(?<width>\d+MM)\s*\(\s*(?<length>\d+)LM\)/i,
+    R_VALUE: /R[\d.]+\s*\w*/,
+    COLOR_HINT: /\(Marked\s+([A-Z\s]+)\)/i,
+    NOTE_INDENT_1: /^  —/,
+    NOTE_INDENT_2: /^   /,
+};
+
+// --- PARSING HELPER FUNCTIONS ---
+
+const parseGroupHeader = (line) => {
+    const match = line.match(REGEX.GROUP_HEADER);
+    if (!match) return null;
+    const itemType = match[3] ? match[3].trim() : null;
+    return {
+        unitNumber: parseInt(match[1], 10),
+        location: match[2].trim(),
+        itemType: itemType,
+        category: mapItemTypeToCategory(itemType),
+    };
+};
+
+const parseSupplyOnlyItem = (line) => {
+    const match = line.match(REGEX.SUPPLY_ONLY_ITEM);
+    if (!match) return null;
+    const { description, area } = match.groups;
+    return {
+        id: nanoid(),
+        originalText: line,
+        description: description.trim(),
+        colorHint: null,
+        rValue: null,
+        quantity: parseFloat(area),
+        unit: 'm²',
+        notes: [],
+        location: "Supply Only Items",
+        category: "Supply Only",
+    };
+};
+
+const parseLineItem = (line, currentGroup) => {
+    const match = line.match(REGEX.LINE_ITEM);
+    if (!match) return null;
+
+    let { descriptionAndStuff, area, remainder } = match.groups;
+    let description = descriptionAndStuff;
+    let colorHint = null;
+    let rValue = null;
+
+    const rValueMatch = description.match(REGEX.R_VALUE);
+    if (rValueMatch) {
+        rValue = rValueMatch[0].trim();
+        description = description.replace(REGEX.R_VALUE, '').trim();
+    }
+
+    const colorMatch = description.match(REGEX.COLOR_HINT);
+    if (colorMatch) {
+        colorHint = colorMatch[1].trim();
+        description = description.replace(colorMatch[0], '').trim();
+    }
+
+    const lineItem = {
+        id: nanoid(),
+        originalText: line,
+        description: description.trim().replace(/-\s*$/, '').trim(),
+        colorHint,
+        rValue,
+        quantity: parseFloat(area),
+        unit: 'm²',
+        notes: [],
+        location: currentGroup?.location || null,
+        category: currentGroup?.category || null,
+    };
+
+    const additionalItems = [];
+    if (remainder && remainder.trim()) {
+        let notesContent = remainder.trim().replace(/^\s*[-—]\s*/, '');
+        const dampCourseMatch = notesContent.match(REGEX.DAMP_COURSE);
+        if (dampCourseMatch) {
+            const { width, length } = dampCourseMatch.groups;
+            const lengthValue = parseInt(length, 10);
+            additionalItems.push({
+                id: nanoid(),
+                originalText: dampCourseMatch[0].trim(),
+                description: "Damp Course",
+                specifications: { width, length: lengthValue },
+                quantity: lengthValue,
+                unit: 'LM',
+                colorHint: null,
+                rValue: null,
+                notes: [],
+                location: currentGroup?.location,
+                category: "Consumables",
+            });
+            notesContent = notesContent.replace(dampCourseMatch[0], '').trim();
+        }
+        if (notesContent) {
+            lineItem.notes.push(...notesContent.split(/\s{2,}[-—]\s*/).filter(Boolean).map(n => n.trim()));
+        }
+    }
+
+    return { lineItem, additionalItems };
+};
+
+// --- MAIN PARSING ENGINE ---
+const parseTextToWorksheet = (text) => {
+    const lines = text.replace(/\u00A0/g, ' ').split('\n').filter(line => line.trim() !== '');
+    const worksheet = { groups: [] };
+    let currentGroup = null;
+    let currentLineItem = null;
+    let isExpectingAdditionalItems = false;
+
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        const supplyItem = parseSupplyOnlyItem(trimmedLine);
+
+        if (supplyItem) {
+            let supplyGroup = worksheet.groups.find(g => g.groupName === "Supply Only Items");
+            if (!supplyGroup) {
+                supplyGroup = {
+                    id: nanoid(),
+                    groupName: "Supply Only Items",
+                    category: "Supply Only",
+                    lineItems: [],
+                };
+                worksheet.groups.push(supplyGroup);
+            }
+            supplyGroup.lineItems.push(supplyItem);
+            currentGroup = supplyGroup;
+            currentLineItem = null;
+            continue;
+        }
+
+        if (trimmedLine.startsWith('-')) {
+            const parsed = parseLineItem(trimmedLine, currentGroup);
+            if (parsed && currentGroup) {
+                currentLineItem = parsed.lineItem;
+                currentGroup.lineItems.push(currentLineItem);
+                if (parsed.additionalItems.length > 0) {
+                    currentGroup.lineItems.push(...parsed.additionalItems);
+                }
+            } else if (currentLineItem) {
+                currentLineItem.notes.push(trimmedLine.replace(/^-+/, '').trim());
+            }
+        } else if ((REGEX.NOTE_INDENT_1.test(line) || REGEX.NOTE_INDENT_2.test(line)) && currentLineItem) {
+            const noteContent = trimmedLine.replace(/^[ —]+/, '');
+            currentLineItem.notes.push(...noteContent.split(/\s{2,}[-—]\s*/).filter(Boolean).map(n => n.trim()));
+        } else {
+            if (trimmedLine === "Additional Items:") {
+                isExpectingAdditionalItems = true;
+                continue;
+            }
+
+            const groupData = parseGroupHeader(trimmedLine);
+            let finalGroupName = trimmedLine;
+            if (isExpectingAdditionalItems) {
+                finalGroupName = `Additional Items:\n${trimmedLine}`;
+                isExpectingAdditionalItems = false;
+            }
+
+            currentGroup = {
+                id: nanoid(),
+                groupName: finalGroupName,
+                unitNumber: groupData?.unitNumber || null,
+                location: groupData?.location || trimmedLine,
+                itemType: groupData?.itemType || null,
+                category: groupData?.category || 'Other',
+                lineItems: [],
+            };
+            worksheet.groups.push(currentGroup);
+            currentLineItem = null;
+        }
+    }
+    return worksheet;
+};
+
+// --- REACT COMPONENT ---
+const PasteParser = ({ onParse }) => {
     const [text, setText] = React.useState('');
 
     const handleParse = () => {
-        const rawWorksheetData = parseWorksheetText(text);
-        const aggregatedData = aggregateWorksheet(rawWorksheetData, materials);
-        onParse(aggregatedData);
+        const rawWorksheetData = parseTextToWorksheet(text);
+        onParse(rawWorksheetData);
     };
 
     return (
@@ -20,7 +213,7 @@ const PasteParser = ({ onParse, materials }) => {
                 style={{ width: '100%' }}
                 placeholder="Paste your unformatted scope of works here..."
             />
-            <button onClick={handleParse} className="btn btn-primary mt-3">
+            <button onClick={handleParse} style={{ marginTop: '10px' }}>
                 Parse and Generate Quote
             </button>
         </div>
