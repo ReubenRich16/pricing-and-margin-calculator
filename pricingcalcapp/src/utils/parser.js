@@ -2,10 +2,31 @@ import { nanoid } from 'nanoid';
 
 // --- HELPER FUNCTIONS ---
 
-const toTitleCase = (str) => {
-    return str.replace(/\w\S*/g, (txt) => {
+const smartTitleCase = (str) => {
+    // 1. Standard Title Case
+    let result = str.replace(/\w\S*/g, (txt) => {
         return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
     });
+    
+    // 2. Fix specific ID patterns (DW1, TH1A-1, U1)
+    // Matches word boundary, Prefix (Dw/Th/U), optional suffix (numbers/letters/dashes), word boundary
+    result = result.replace(/\b(Dw|Th|U)([0-9a-z-]+)?\b/g, (match, prefix, suffix) => {
+        return prefix.toUpperCase() + (suffix ? suffix.toUpperCase() : '');
+    });
+
+    return result;
+};
+
+const splitNotes = (notesString) => {
+    if (!notesString) return [];
+    // Split by:
+    // - Semicolons (;)
+    // - Triple spaces or more (\s{3,})
+    // - " - " (Space Dash Space)
+    // - Standard dash separators (-- / —)
+    return notesString.split(/;|\s{3,}|\s-\s|\s*--\s*|\s*—\s*/)
+        .map(n => n.trim())
+        .filter(Boolean);
 };
 
 // --- CATEGORY MAPPING HELPER ---
@@ -53,15 +74,6 @@ const isLineItem = (line) => {
     return REGEX.LINE_ITEM.test(line); // || REGEX.IMPLIED_LINE_ITEM.test(line); // strict regex preferred first
 };
 
-const splitNotes = (notesString) => {
-    if (!notesString) return [];
-    // Split by various dash formats, then clean up the resulting array.
-    // Avoid splitting if it breaks a sentence, but generally notes are separated by dashes.
-    return notesString.split(/\s*--\s*|\s*—\s*|\s*-\s*/)
-        .map(n => n.trim())
-        .filter(Boolean);
-};
-
 const validateLineItem = (lineItem) => {
     // Dimension Check: If description contains "X panels" AND dimensions (e.g., "2400x600mm"):
     // Calculate Theoretical Area = Count * Width * Length.
@@ -89,7 +101,67 @@ const validateLineItem = (lineItem) => {
     return lineItem;
 };
 
-const parseLineItem = (line, currentGroup) => {
+const calculatePanelCount = (itemData, materials) => {
+    // Return if already has count or not a relevant category
+    if (itemData.productCount) return null;
+    if (!['XPS', 'Rigid Wall/Soffit'].includes(itemData.category)) return null;
+
+    let width, length;
+
+    // 1. Check extracted dimensions from text
+    if (itemData.dimensions) {
+        const parts = itemData.dimensions.toLowerCase().replace('mm', '').split('x');
+        if (parts.length === 2) {
+             // Usually length x width (e.g. 2400x600)
+             length = parseFloat(parts[0]);
+             width = parseFloat(parts[1]);
+        }
+    }
+
+    // 2. If no dims found in text, search materials database
+    if ((!width || !length) && materials && materials.length > 0) {
+        // Parsing thickness from string "70mm" -> 70
+        const thicknessVal = itemData.thickness ? parseFloat(itemData.thickness) : null;
+        const rVal = itemData.rValue ? parseFloat(itemData.rValue.replace('R', '')) : null;
+
+        // Try to find a match
+        const match = materials.find(m => {
+            // Category check (loose, as XPS is often in Rigid category in DB)
+            const catMatch = m.category === itemData.category || (itemData.category === 'Rigid Wall/Soffit' && (m.materialName.includes('K10') || m.materialName.includes('K12')));
+            
+            // Thickness check
+            const thickMatch = thicknessVal ? (parseFloat(m.thickness) === thicknessVal) : true;
+            
+            // R-Value check
+            const rMatch = rVal ? (parseFloat(m.rValue) === rVal) : true;
+            
+            // Description check (if no specific attributes matched, try finding brand names)
+            // But strict matching is better to avoid false positives. 
+            // We rely on thickness/R-value/Category primarily.
+            
+            return catMatch && thickMatch && rMatch;
+        });
+
+        if (match) {
+            width = parseFloat(match.width);
+            length = parseFloat(match.length);
+        }
+    }
+
+    if (width && length) {
+        const areaPerBoard = (width * length) / 1000000; // mm^2 to m^2
+        const count = Math.ceil(itemData.quantity / areaPerBoard);
+        
+        return {
+            count: count,
+            unit: 'panels', // Default to panels for XPS/Rigid
+            dims: `${Math.max(width, length)}x${Math.min(width, length)}` // Format like 2400x600
+        };
+    }
+    return null;
+};
+
+const parseLineItem = (line, currentGroup, materials) => {
     const match = line.match(REGEX.LINE_ITEM);
     if (!match) return null;
 
@@ -112,7 +184,6 @@ const parseLineItem = (line, currentGroup) => {
     if (productCountMatch) {
         productCount = parseInt(productCountMatch.groups.count, 10);
         productUnit = productCountMatch.groups.unit.toLowerCase();
-        // We do NOT remove this from description to keep context readable
     }
 
     // Extract Thickness (e.g., 70mm)
@@ -149,8 +220,8 @@ const parseLineItem = (line, currentGroup) => {
     // Determine Category
     const category = description.toLowerCase().includes('xps') ? 'XPS' : (currentGroup?.category || mapItemTypeToCategory(description));
 
-    // Title Case the Description
-    const titleCasedDescription = toTitleCase(description.trim().replace(/[-–]\s*$/, '').trim());
+    // Description Casing: KEEP ORIGINAL (Requirement: NO CHANGES)
+    const cleanedDescription = description.trim().replace(/[-–]\s*$/, '').trim();
 
     // Create the primary line item
     let lineItem = {
@@ -158,7 +229,7 @@ const parseLineItem = (line, currentGroup) => {
         type: 'LINE_ITEM',
         confidence: 'high',
         originalText: line,
-        description: titleCasedDescription,
+        description: cleanedDescription,
         colorHint,
         rValue,
         isSupplyOnly,
@@ -177,6 +248,15 @@ const parseLineItem = (line, currentGroup) => {
         category: category,
     };
 
+    // --- AUTO CALCULATION ---
+    const calcResult = calculatePanelCount(lineItem, materials);
+    if (calcResult) {
+        lineItem.productCount = calcResult.count;
+        lineItem.productUnit = calcResult.unit;
+        // Add note
+        lineItem.notes.push(`⚡ Auto-calculated: ${calcResult.count} panels based on ${calcResult.dims} dimensions.`);
+    }
+
     const additionalItems = [];
 
     // Process Remainder (same line notes)
@@ -192,8 +272,8 @@ const parseLineItem = (line, currentGroup) => {
                 id: nanoid(),
                 type: 'LINE_ITEM',
                 description: "Includes Damp Course", // Explicit Description
-                specifications: { width: `${width}`, length: lengthValue }, // ensure width is string '300MM' or similar
-                thickness: width.toLowerCase(), // map width to thickness for consistency
+                specifications: { width: `${width}`, length: lengthValue }, 
+                thickness: width.toLowerCase(),
                 quantity: lengthValue,
                 unit: 'LM',
                 colorHint: null,
@@ -217,7 +297,7 @@ const parseLineItem = (line, currentGroup) => {
 };
 
 // --- MAIN PARSING ENGINE ---
-export const parseWorksheetText = (text) => {
+export const parseWorksheetText = (text, materials = []) => {
     const lines = text.replace(/\u00A0/g, ' ').split('\n');
     const worksheet = { groups: [] };
     let currentGroup = null;
@@ -233,7 +313,7 @@ export const parseWorksheetText = (text) => {
 
         // If it's a line item, process it
         if (looksLikeLineItem) {
-            const parsed = parseLineItem(trimmedLine, currentGroup);
+            const parsed = parseLineItem(trimmedLine, currentGroup, materials);
             if (parsed) {
                 currentLineItem = parsed.lineItem;
                 
@@ -319,8 +399,8 @@ export const parseWorksheetText = (text) => {
                 const itemTypeMatch = trimmedLine.match(/–\s*(.+)/);
                 const itemType = itemTypeMatch ? itemTypeMatch[1].trim() : null;
                 
-                // Apply Title Case to Header
-                const titleCasedHeader = toTitleCase(trimmedLine);
+                // Apply Smart Title Case to Header
+                const titleCasedHeader = smartTitleCase(trimmedLine);
 
                 currentGroup = {
                     id: nanoid(),

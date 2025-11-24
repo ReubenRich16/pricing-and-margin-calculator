@@ -1,12 +1,14 @@
 import React from 'react';
 import { parseWorksheetText } from '../../utils/parser';
+import { useMaterials } from '../../contexts/MaterialsContext';
 
 // --- REACT COMPONENT ---
 const PasteParser = ({ onParse }) => {
     const [text, setText] = React.useState('');
+    const { materials } = useMaterials();
 
     const handleParse = () => {
-        const rawWorksheetData = parseWorksheetText(text);
+        const rawWorksheetData = parseWorksheetText(text, materials);
         onParse(rawWorksheetData);
     };
 
