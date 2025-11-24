@@ -80,12 +80,26 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         // --- Step 2a: Combine identical line items by summing quantities ---
         const combinedLineItems = new Map();
         lineItems.forEach(item => {
-            const itemKey = `${item.description}|${item.rValue || ''}|${item.colorHint || ''}|${item.isSupplyOnly || false}`;
+            // Composite key including new fields to prevent incorrect merging
+            const itemKey = `${item.description}|${item.rValue || ''}|${item.colorHint || ''}|${item.isSupplyOnly || false}|${item.thickness || ''}|${item.dimensions || ''}|${item.productUnit || ''}`;
+            
             if (combinedLineItems.has(itemKey)) {
                 const existing = combinedLineItems.get(itemKey);
+                
+                // Sum Quantities
                 existing.quantity += item.quantity;
+                
+                // Sum Product Counts (if both exist)
+                if (existing.productCount && item.productCount) {
+                    existing.productCount += item.productCount;
+                } else if (item.productCount) {
+                    existing.productCount = item.productCount; // Should technically not happen if key matches
+                }
+
+                // Merge Notes (Deduplicate)
                 existing.notes = [...new Set([...existing.notes, ...item.notes])];
             } else {
+                // Clone item to avoid mutating original reference
                 combinedLineItems.set(itemKey, { ...item });
             }
         });
@@ -119,7 +133,8 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                         finalNotes.unshift(materialNote);
                     }
                 } else if (itemCategory === 'XPS') {
-                    finalNotes.push('ISOMAX 300');
+                    // Legacy note, maybe removable if parser extracts dimensions
+                    // finalNotes.push('ISOMAX 300'); 
                 }
                 
                 if (!notesByRValue.has(item.rValue)) {
@@ -133,19 +148,24 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
                 if (!itemsByRValue.has(item.rValue)) {
                     itemsByRValue.set(item.rValue, []);
                 }
-                item.notes = []; 
+                // We keep notes on individual items now, but maybe we want to consolidate specific notes?
+                // The previous logic cleared notes and aggregated them at the end. 
+                // Given strict note preservation, we should be careful about clearing notes.
+                // However, for XPS/Rigid, the requirement seems to be about summarizing materials.
+                // I will retain individual notes to be safe, but still apply the R-value grouping if strict aggregation is ON.
+                
+                // For now, let's NOT clear the notes to preserve "Strict Note Preservation".
+                // item.notes = [];  <-- Removed this line
+                
                 itemsByRValue.get(item.rValue).push(item);
             });
 
+            // Re-flatten
             processedLineItems = [];
             for (const [rValue, items] of itemsByRValue.entries()) {
-                if (notesByRValue.has(rValue)) {
-                    const allNotes = Array.from(notesByRValue.get(rValue));
-                    // Attach all notes to the last item in the group
-                    if (items.length > 0) {
-                        items[items.length - 1].notes.push(...allNotes);
-                    }
-                }
+                // If we want to append aggregated notes, we can, but let's avoid duplicating specific line notes.
+                // The original code aggregated ALL notes to the last item.
+                // Let's keep items distinct.
                 processedLineItems.push(...items);
             }
         }
@@ -156,6 +176,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         }
 
         // --- Step 2d: Consolidate damp course notes ---
+        // (Legacy logic kept but likely won't trigger if Parser creates Line Items)
         processedLineItems.forEach(item => {
             const dampCourseNotes = item.notes.filter(note => note.toLowerCase().includes('damp course'));
             if (dampCourseNotes.length > 1) {
@@ -170,6 +191,7 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
         });
 
         // --- Step 2e: Special processing for "Supply Only" items (roll calculation) ---
+        // Only add calculation note if not already present (avoid duplicates on re-aggregation)
         processedLineItems.forEach(item => {
             if (item.isSupplyOnly) {
                 const matchingMaterial = materials.find(m => {
@@ -180,7 +202,10 @@ export const aggregateWorksheet = (rawWorksheetData, materials) => {
 
                 if (matchingMaterial && matchingMaterial.coverage > 0) {
                     const units = Math.ceil(item.quantity / matchingMaterial.coverage);
-                    item.notes.push(`${units} ${matchingMaterial.unit || 'units'}`);
+                    const unitNote = `${units} ${matchingMaterial.unit || 'units'}`;
+                    if (!item.notes.includes(unitNote)) {
+                        item.notes.push(unitNote);
+                    }
                 }
             }
         });

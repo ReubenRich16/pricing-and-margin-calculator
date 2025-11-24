@@ -82,7 +82,7 @@ const validateLineItem = (lineItem) => {
             const percentage = (diff / quotedArea) * 100;
             
             if (percentage > 5) {
-                lineItem.notes.push(`⚠️ Dimensions Check: Count covers ${theoreticalArea.toFixed(2)} m², but quoted ${quotedArea.toFixed(2)} m².`);
+                lineItem.notes.push(`⚠️ Dimensions Check: ${lineItem.productCount} panels covers ${theoreticalArea.toFixed(2)}m², but quoted ${quotedArea.toFixed(2)}m².`);
             }
         }
     }
@@ -149,13 +149,16 @@ const parseLineItem = (line, currentGroup) => {
     // Determine Category
     const category = description.toLowerCase().includes('xps') ? 'XPS' : (currentGroup?.category || mapItemTypeToCategory(description));
 
+    // Title Case the Description
+    const titleCasedDescription = toTitleCase(description.trim().replace(/[-–]\s*$/, '').trim());
+
     // Create the primary line item
     let lineItem = {
         id: nanoid(),
         type: 'LINE_ITEM',
         confidence: 'high',
         originalText: line,
-        description: description.trim().replace(/[-–]\s*$/, '').trim(),
+        description: titleCasedDescription,
         colorHint,
         rValue,
         isSupplyOnly,
